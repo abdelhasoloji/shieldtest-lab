@@ -88,6 +88,32 @@ export const SCENARIOS = {
     generator: { SHAPE: 'wave', PROFILE: 'ntp', FACTOR: 60, PACKET_FACTOR: 4, PPS: 140, DURATION_SEC: 10 },
     legit: { PPS: 30, DURATION_SEC: 10 },
   },
+
+  // --- zeroBS DRS Volumetric vectors (report P25-20300) ----------------------
+  // Bounded, synthetic realizations of the UDP amplification/rate vectors from a
+  // zeroBS DDoS stress-test's Volumetric section. TCP/GRE/spoofing/fragmentation
+  // vectors from that report are out of this bench's model (see the control
+  // plane's bench catalogue) and are NOT reproduced here.
+  udp_dns_reflection: {
+    summary: 'zeroBS DRS3 — UDP DNS reflection (synthetic DNS-shape amplification).',
+    useScrubber: false,
+    generator: { PROFILE: 'dns', SHAPE: 'constant', FACTOR: 40, PACKET_FACTOR: 1, PPS: 120, DURATION_SEC: 6 },
+  },
+  udp_maxpackets: {
+    summary: 'zeroBS DRS3 — UDP max-packets (high bounded packet rate; stresses the PPS path).',
+    useScrubber: false,
+    generator: { PROFILE: 'generic', SHAPE: 'constant', FACTOR: 1, PACKET_FACTOR: 10, PPS: 200, DURATION_SEC: 6 },
+  },
+  udp_multivector: {
+    summary: 'zeroBS DRS4 — UDP multi-vector (several synthetic amplification profiles together).',
+    useScrubber: false,
+    generators: [
+      { PROFILE: 'dns', SHAPE: 'constant', FACTOR: 40, PACKET_FACTOR: 1, PPS: 60, DURATION_SEC: 6 },
+      { PROFILE: 'ntp', SHAPE: 'wave', FACTOR: 80, PACKET_FACTOR: 4, PPS: 60, DURATION_SEC: 6 },
+      { PROFILE: 'ssdp', SHAPE: 'burst', FACTOR: 30, PACKET_FACTOR: 2, PPS: 50, DURATION_SEC: 6 },
+      { PROFILE: 'memcached', SHAPE: 'constant', FACTOR: 100, PACKET_FACTOR: 8, PPS: 40, DURATION_SEC: 6 },
+    ],
+  },
 };
 
 export function scenarioNames() {

@@ -59,6 +59,16 @@ test('a live onSample callback receives chain snapshots during the run', async (
   assert.ok('reflector' in last && 'target' in last, 'snapshot has the expected shape');
 });
 
+test('zeroBS Volumetric UDP vectors are present and runnable', async () => {
+  for (const name of ['udp_dns_reflection', 'udp_maxpackets', 'udp_multivector']) {
+    assert.ok(scenarioNames().includes(name), `${name} present`);
+  }
+  const s = await runScenario('udp_multivector', { generator: { DURATION_SEC: 2 } });
+  assert.ok(s.reflector.requests > 0, 'multivector produced traffic');
+  const profiles = Object.keys(s.perProfile);
+  assert.ok(profiles.includes('dns') && profiles.includes('ntp') && profiles.includes('memcached'));
+});
+
 test('rejects an unknown scenario', async () => {
   await assert.rejects(() => runScenario('nope'), /unknown scenario/);
 });
