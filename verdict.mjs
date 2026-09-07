@@ -17,6 +17,8 @@ export const OUTCOMES = Object.freeze([
   'NOT_MITIGATED', // scrubber present but never engaged
   'MITIGATED', // scrubber engaged and dropped excess with negligible collateral
   'MITIGATED_WITH_COLLATERAL', // scrubber engaged but harmed legitimate traffic
+  'STATE_TABLE_SATURATED', // TCP: the target shed connections (state table full)
+  'ABSORBED', // TCP: all offered connections were accepted (no saturation)
 ]);
 
 // Collateral (share of dropped packets that were legitimate) above this counts as
@@ -40,6 +42,29 @@ export function classifyOutcome(summary) {
  */
 export function toVerdict(summary, opts = {}) {
   const labTarget = (opts.labTarget ?? DEFAULT_LAB_TARGET).trim() || DEFAULT_LAB_TARGET;
+  // TCP connection-pressure runs carry a different measurement shape.
+  if (summary.kind === 'tcp') {
+    const t = summary.target ?? {};
+    return {
+      schema: VERDICT_SCHEMA,
+      class: 'C', // network bench — never a class-A/B verdict
+      kind: 'tcp-connection-pressure',
+      scenario: summary.scenario ?? null,
+      labTarget,
+      connections: {
+        opened: summary.generator?.opened ?? 0,
+        accepted: t.accepted ?? 0,
+        refused: t.refused ?? 0,
+        concurrentPeak: t.concurrentPeak ?? 0,
+        capacity: t.capacity ?? 0,
+        saturationPct: t.saturationPct ?? 0,
+      },
+      outcome: (t.saturationPct ?? 0) > 0 ? 'STATE_TABLE_SATURATED' : 'ABSORBED',
+      runner: opts.runner ?? 'shieldtest-lab',
+      source: 'shieldtest-lab',
+      generatedAt: new Date().toISOString(),
+    };
+  }
   const r = summary.reflector ?? {};
   const t = summary.target ?? {};
   const s = summary.scrubber ?? null;

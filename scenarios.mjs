@@ -114,6 +114,23 @@ export const SCENARIOS = {
       { PROFILE: 'memcached', SHAPE: 'constant', FACTOR: 100, PACKET_FACTOR: 8, PPS: 40, DURATION_SEC: 6 },
     ],
   },
+
+  // --- zeroBS DRS Volumetric TCP vectors — no-spoof state-table pressure ------
+  // Reproduces the connection/state-table EXHAUSTION shape of a TCP flood using
+  // real connections from a real lab source (no source-IP spoofing, no raw
+  // packets — the defining trait of a real SYN flood is deliberately absent).
+  tcp_synflood: {
+    kind: 'tcp',
+    summary: 'zeroBS DRS3 — TCP SynFlood shape: no-spoof connection/state-table pressure.',
+    target: { CAPACITY: 200 },
+    generator: { RATE_CPS: 150, DURATION_SEC: 6, HOLD_MS: 8000 },
+  },
+  tcp_maxpackets: {
+    kind: 'tcp',
+    summary: 'zeroBS DRS3 — TCP MaxPackets shape: high bounded connection rate.',
+    target: { CAPACITY: 300 },
+    generator: { RATE_CPS: 250, DURATION_SEC: 6, HOLD_MS: 4000 },
+  },
 };
 
 export function scenarioNames() {

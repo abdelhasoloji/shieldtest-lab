@@ -3,6 +3,8 @@ import { createTarget } from './target/receiver.mjs';
 import { createReflector } from './synthetic-reflector/server.mjs';
 import { createScrubber } from './scrubber/server.mjs';
 import { runGenerator } from './generator/generate.mjs';
+import { createTcpTarget } from './tcp-target/receiver.mjs';
+import { runTcpGenerator } from './tcp-generator/generate.mjs';
 import { SCENARIOS, scenarioNames } from './scenarios.mjs';
 import { toVerdict } from './verdict.mjs';
 
@@ -68,6 +70,70 @@ function perProfile(reflector) {
 }
 
 /**
+ * Runs a TCP connection-pressure scenario in-process over loopback (tcp-target ←
+ * tcp-generator). No spoofing, no raw packets — real connections from a real
+ * source, capped rate/duration. Returns the same summary shape as the UDP path
+ * (with a `tcp` section and `kind:'tcp'`) so the verdict/console/runner reuse it.
+ */
+async function runTcpScenario(name, cfg, opts = {}) {
+  const t = { ...(cfg.target ?? {}), ...opts.target };
+  const g = { ...(cfg.generator ?? {}), ...opts.generator };
+
+  const target = createTcpTarget({
+    LISTEN_HOST: LOOPBACK,
+    LISTEN_PORT: '0',
+    CAPACITY: String(t.CAPACITY ?? 200),
+  });
+  const targetPort = await startAsync(target);
+
+  let sampler = null;
+  if (typeof opts.onSample === 'function') {
+    const emit = () => {
+      try {
+        opts.onSample({ kind: 'tcp', target: { ...tcpTargetView(target) } });
+      } catch {
+        /* a slow consumer must never crash the run */
+      }
+    };
+    emit();
+    sampler = setInterval(emit, 250);
+    if (typeof sampler.unref === 'function') sampler.unref();
+  }
+
+  const gen = await runTcpGenerator({
+    TARGET_HOST: LOOPBACK,
+    TARGET_PORT: String(targetPort),
+    LAB_CIDR_PREFIX: PREFIX,
+    RATE_CPS: String(g.RATE_CPS ?? 100),
+    DURATION_SEC: String(g.DURATION_SEC ?? 6),
+    HOLD_MS: String(g.HOLD_MS ?? 8000),
+    MAX_CPS: '2000',
+  });
+  await sleep(200);
+  if (sampler) clearInterval(sampler);
+
+  const summary = {
+    scenario: name,
+    kind: 'tcp',
+    generator: { opened: gen.opened, failed: gen.failed, rateCps: gen.rateCps },
+    target: tcpTargetView(target),
+  };
+  summary.verdict = toVerdict(summary);
+  await stopAsync(target);
+  return summary;
+}
+
+function tcpTargetView(target) {
+  return {
+    accepted: target.metrics.accepted,
+    refused: target.metrics.refused,
+    concurrentPeak: target.metrics.concurrentPeak,
+    capacity: target.metrics.capacity,
+    saturationPct: target.metrics.saturationPct,
+  };
+}
+
+/**
  * Runs a named scenario in-process over loopback (target → [scrubber] →
  * reflector → generator[s]), returns a summary. `opts.generator`/`opts.scrubber`/
  * `opts.legit` shallow-merge into the scenario config (used by tests to shorten
@@ -77,6 +143,7 @@ function perProfile(reflector) {
 export async function runScenario(name, opts = {}) {
   const cfg = SCENARIOS[name];
   if (!cfg) throw new Error(`unknown scenario ${name}; try: ${scenarioNames().join(', ')}`);
+  if (cfg.kind === 'tcp') return runTcpScenario(name, cfg, opts);
   const gens = attackGenerators(cfg, opts.generator);
   if (gens.length === 0) throw new Error(`scenario ${name} declares no generator`);
   const scr = { ...(cfg.scrubber ?? {}), ...opts.scrubber };
