@@ -37,7 +37,9 @@ is governed entirely on its own — never near production.
 | `scrubber/server.mjs`          | Optional mitigation node: detects and filters over a PPS threshold. |
 | `generator/generate.mjs`       | Load generator (synthetic amplification requests, or benign `legit`). |
 | `lib/net-guard.mjs`            | Refuses any destination outside the lab CIDR (defense in depth).    |
-| `profiles.mjs` · `scenarios.mjs` · `run-scenario.mjs` | Traffic-shape presets and the scenario runner.       |
+| `profiles.mjs` · `scenarios.mjs` · `run-scenario.mjs` | Traffic-shape presets and the scenario runner (single- or multi-vector). |
+| `verdict.mjs`                  | Turns a run into a read-only, class-C verdict artifact (see below). |
+| `console/`                     | Loopback web console: pick a bounded scenario, watch it live, read its verdict. |
 
 ## Run it (on an isolated bench only)
 
@@ -59,6 +61,51 @@ Safety-invariant tests (no Docker needed):
 ```bash
 npm test        # node --test "test/*.test.mjs"
 ```
+
+## Console (loopback web UI)
+
+A small web console runs the bounded scenarios in-process over loopback and shows
+each one live — byte/packet amplification, target throughput, and (when a scrubber
+is in the path) detection delay, collateral and dropped counts — then renders the
+run's verdict artifact.
+
+```bash
+npm run console         # serves http://127.0.0.1:9110 — reach it over an SSH tunnel, never publicly
+```
+
+Safety by construction: the console **binds a loopback host only** (a non-loopback
+bind is refused unless `LAB_CONSOLE_ALLOW_NONLOOPBACK=1` is set on an isolated
+network), and the only thing a client can ask for is a **named, allowlisted
+scenario** — no target, host, port or rate is ever accepted from the wire, so it
+cannot become a general-purpose traffic launcher.
+
+## Scenarios, shapes & mitigation strategies
+
+```bash
+npm run scenario -- multi-profile-mix     # run a named scenario, print the summary
+npm run verdict  -- adaptive-mitigation   # run and print just the verdict artifact
+```
+
+Scenarios (`scenarios.mjs`) are bounded configs wired by `run-scenario.mjs`. They
+cover rate **shapes** (`constant` / `ramp` / `wave` / `burst`), **multi-vector
+combos** (several synthetic profiles fired together, with a per-profile
+amplification breakdown), and the scrubber's **mitigation strategies**:
+
+- `ceiling` — forward up to a fixed pps, drop the rest (blunt rate cap);
+- `blocklist` — forward every legitimate packet, drop attack-classified ones
+  (ideal signature filter → ~0 collateral);
+- `adaptive` — start at the floor and raise the ceiling toward the threshold when
+  mitigation harms legitimate traffic, decay it back down when it does not.
+
+## Verdict artifact (read-only, class C)
+
+`verdict.mjs` maps a run to a small JSON artifact — amplification factor, packet
+amplification, detection delay, mitigation strategy/efficacy, collateral and an
+outcome. **Boundary note:** UDP amplification is **class C** ("network bench") in
+ShieldTest's `drs-validation-policy.md`; the control plane's `/api/drs-validations`
+records **class A/B only** and rejects class C. So this verdict is standalone,
+read-only evidence (attach it to a report, diff two runs, or scrape the same
+numbers from Prometheus) — it is **never** posted as a class-A/B verdict.
 
 ## Relationship to ShieldTest
 

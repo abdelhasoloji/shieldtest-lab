@@ -25,6 +25,40 @@ test('mitigation-delay-study engages the scrubber and drops excess', async () =>
   assert.ok(s.scrubber.dropped > 0, 'excess should be dropped');
 });
 
+test('multi-profile-mix fires several profiles and breaks amplification down per profile', async () => {
+  const s = await runScenario('multi-profile-mix', { generator: { DURATION_SEC: 2 } });
+  assert.equal(s.generators.length, 3, 'three concurrent generators');
+  assert.equal(s.generator.profile, 'mixed');
+  const profiles = Object.keys(s.perProfile);
+  assert.ok(profiles.includes('dns') && profiles.includes('ntp') && profiles.includes('memcached'));
+  for (const p of ['dns', 'ntp', 'memcached']) {
+    assert.ok(s.perProfile[p].requests > 0, `${p} saw requests`);
+  }
+});
+
+test('blocklist-mitigation keeps collateral at zero while dropping attack', async () => {
+  const s = await runScenario('blocklist-mitigation', {
+    generator: { DURATION_SEC: 2, PPS: 150 },
+    scrubber: { DETECTION_DELAY_SEC: 0, THRESHOLD_PPS: 40, CEILING_PPS: 10 },
+    legit: { DURATION_SEC: 2, PPS: 40 },
+  });
+  assert.equal(s.scrubber.strategy, 'blocklist');
+  assert.equal(s.scrubber.mitigating, true);
+  assert.equal(s.scrubber.collateralPct, 0, 'blocklist forwards all legit');
+  assert.ok(s.scrubber.dropped > 0, 'attack traffic dropped');
+});
+
+test('a live onSample callback receives chain snapshots during the run', async () => {
+  const samples = [];
+  await runScenario('amplification-ramp', {
+    generator: { DURATION_SEC: 2 },
+    onSample: (snap) => samples.push(snap),
+  });
+  assert.ok(samples.length >= 2, 'sampler fired during the run');
+  const last = samples.at(-1);
+  assert.ok('reflector' in last && 'target' in last, 'snapshot has the expected shape');
+});
+
 test('rejects an unknown scenario', async () => {
   await assert.rejects(() => runScenario('nope'), /unknown scenario/);
 });

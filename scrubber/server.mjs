@@ -24,6 +24,17 @@ export function createScrubber(env = process.env) {
   const CEILING_PPS = Number(env.CEILING_PPS || 50);
   const DETECTION_DELAY_SEC = Number(env.DETECTION_DELAY_SEC || 3);
   const METRICS_PORT = Number(env.METRICS_PORT || 0);
+  // Mitigation strategy — how the scrubber sheds load once it has detected an
+  // attack. All three are bounded, drop-only models (the scrubber never emits
+  // traffic of its own beyond forwarding):
+  //   ceiling   — forward up to CEILING_PPS/s, drop the rest regardless of type
+  //               (blunt rate cap; legit traffic caught in the excess is collateral)
+  //   blocklist — forward every legit-classified packet, drop every attack-
+  //               classified one (models an ideal signature filter: ~0 collateral)
+  //   adaptive  — start at CEILING_PPS and raise the effective ceiling toward
+  //               THRESHOLD when collateral appears, decay back down when it does
+  //               not (trades residual load against collateral)
+  const STRATEGY = (env.STRATEGY || 'ceiling').toLowerCase();
 
   assertLabAddressInPrefix(TARGET_HOST, env.LAB_CIDR_PREFIX, 'TARGET_HOST');
   if (!Number.isInteger(TARGET_PORT) || TARGET_PORT < 1024 || TARGET_PORT > 65535) {
@@ -42,6 +53,13 @@ export function createScrubber(env = process.env) {
   ) {
     throw new Error('DETECTION_DELAY_SEC must be between 0 and 60');
   }
+  const STRATEGIES = new Set(['ceiling', 'blocklist', 'adaptive']);
+  if (!STRATEGIES.has(STRATEGY)) {
+    throw new Error(`STRATEGY must be one of ${[...STRATEGIES].join(', ')}`);
+  }
+  // Adaptive raises/decays the effective ceiling by this many pps per window,
+  // bounded to [CEILING_PPS, THRESHOLD_PPS].
+  const ADAPT_STEP_PPS = Math.max(1, Math.round((THRESHOLD_PPS - CEILING_PPS) / 4));
 
   const output = dgram.createSocket('udp4');
   let inputSocket = null;
@@ -55,11 +73,29 @@ export function createScrubber(env = process.env) {
     droppedLegit: 0,
     mitigating: false,
     detectionDelaySec: null, // measured: mitigation start − first over-threshold second
+    effectiveCeiling: CEILING_PPS, // adaptive strategy adjusts this within [CEILING, THRESHOLD]
     // internal accounting
     windowPackets: 0, // packets seen in the current 1s window
     forwardedThisWindow: 0,
+    droppedLegitThisWindow: 0, // collateral observed in the current window (adaptive input)
     overThresholdSince: null, // seconds counter of sustained over-threshold
   };
+
+  function drop(isLegit) {
+    state.dropped++;
+    if (isLegit) {
+      state.droppedLegit++;
+      state.droppedLegitThisWindow++;
+    } else {
+      state.droppedAttack++;
+    }
+    return { forward: false, isLegit };
+  }
+  function forward(isLegit) {
+    state.forwarded++;
+    state.forwardedThisWindow++;
+    return { forward: true, isLegit };
+  }
 
   /** Classifies a packet and decides forward vs drop; updates counters. Returns the decision. */
   function ingest(msg) {
@@ -73,19 +109,22 @@ export function createScrubber(env = process.env) {
       /* opaque payload → treated as attack-shaped */
     }
     const isLegit = type !== ATTACK_TYPE;
-    // While mitigating, forward only up to the ceiling per window; drop the rest.
-    if (state.mitigating && state.forwardedThisWindow >= CEILING_PPS) {
-      state.dropped++;
-      if (isLegit) state.droppedLegit++;
-      else state.droppedAttack++;
-      return { forward: false, isLegit };
+    if (!state.mitigating) return forward(isLegit);
+    switch (STRATEGY) {
+      case 'blocklist':
+        // Ideal classifier: forward legit, drop attack-classified outright.
+        return isLegit ? forward(isLegit) : drop(isLegit);
+      case 'adaptive':
+        return state.forwardedThisWindow >= state.effectiveCeiling
+          ? drop(isLegit)
+          : forward(isLegit);
+      case 'ceiling':
+      default:
+        return state.forwardedThisWindow >= CEILING_PPS ? drop(isLegit) : forward(isLegit);
     }
-    state.forwarded++;
-    state.forwardedThisWindow++;
-    return { forward: true, isLegit };
   }
 
-  /** One-second evaluation: rate check, mitigation engagement, window reset. */
+  /** One-second evaluation: rate check, mitigation engagement, adaptation, window reset. */
   function tick() {
     const pps = state.windowPackets;
     if (pps > THRESHOLD_PPS) {
@@ -97,8 +136,18 @@ export function createScrubber(env = process.env) {
     } else {
       state.overThresholdSince = null; // sustained breach broken (mitigation stays latched)
     }
+    // Adaptive: if this window harmed legitimate traffic, loosen the ceiling
+    // toward the threshold; otherwise decay it back toward the floor.
+    if (STRATEGY === 'adaptive' && state.mitigating) {
+      if (state.droppedLegitThisWindow > 0) {
+        state.effectiveCeiling = Math.min(THRESHOLD_PPS, state.effectiveCeiling + ADAPT_STEP_PPS);
+      } else {
+        state.effectiveCeiling = Math.max(CEILING_PPS, state.effectiveCeiling - ADAPT_STEP_PPS);
+      }
+    }
     state.windowPackets = 0;
     state.forwardedThisWindow = 0;
+    state.droppedLegitThisWindow = 0;
   }
 
   const metrics = {
@@ -122,6 +171,9 @@ export function createScrubber(env = process.env) {
     },
     get detectionDelaySec() {
       return state.detectionDelaySec;
+    },
+    get effectiveCeiling() {
+      return state.effectiveCeiling;
     },
     /** Collateral: share of dropped packets that were legitimate (0 when none dropped). */
     get collateralPct() {
@@ -154,6 +206,12 @@ export function createScrubber(env = process.env) {
       '# HELP shieldtest_scrubber_collateral_pct Share of dropped packets that were legitimate.',
       '# TYPE shieldtest_scrubber_collateral_pct gauge',
       `shieldtest_scrubber_collateral_pct ${metrics.collateralPct}`,
+      '# HELP shieldtest_scrubber_effective_ceiling_pps Current forward ceiling (adaptive strategy moves it).',
+      '# TYPE shieldtest_scrubber_effective_ceiling_pps gauge',
+      `shieldtest_scrubber_effective_ceiling_pps ${state.effectiveCeiling}`,
+      '# HELP shieldtest_scrubber_strategy Active mitigation strategy (1 for the active label).',
+      '# TYPE shieldtest_scrubber_strategy gauge',
+      `shieldtest_scrubber_strategy{strategy="${STRATEGY}"} 1`,
       '',
     ].join('\n');
   }
@@ -168,6 +226,7 @@ export function createScrubber(env = process.env) {
     return {
       detectionTimeSec: d,
       mitigationTimeSec: state.mitigating ? d : 0,
+      strategy: STRATEGY,
       source: 'lab-scrubber',
     };
   }
@@ -215,7 +274,7 @@ export function createScrubber(env = process.env) {
     if (metricsServer) metricsServer.close(settle);
   }
 
-  return { start, stop, ingest, tick, metrics, renderMetrics, protectionJson };
+  return { start, stop, ingest, tick, metrics, renderMetrics, protectionJson, strategy: STRATEGY };
 }
 
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;

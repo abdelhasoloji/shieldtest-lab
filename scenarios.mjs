@@ -28,6 +28,66 @@ export const SCENARIOS = {
     generator: { SHAPE: 'constant', FACTOR: 5, PACKET_FACTOR: 3, PPS: 120, DURATION_SEC: 8 },
     legit: { PPS: 20, DURATION_SEC: 8 },
   },
+
+  // --- Rate-shape detection studies -----------------------------------------
+  'wave-detection': {
+    summary: 'Oscillating (wave) attack rate; study how detection latches on a variable rate.',
+    useScrubber: true,
+    scrubber: { THRESHOLD_PPS: 90, CEILING_PPS: 40, DETECTION_DELAY_SEC: 2 },
+    generator: { SHAPE: 'wave', PROFILE: 'dns', PPS: 150, DURATION_SEC: 8 },
+  },
+  'burst-detection': {
+    summary: 'On/off burst attack; study detection against a bursty rate profile.',
+    useScrubber: true,
+    scrubber: { THRESHOLD_PPS: 90, CEILING_PPS: 40, DETECTION_DELAY_SEC: 2 },
+    generator: { SHAPE: 'burst', PROFILE: 'ssdp', PPS: 160, DURATION_SEC: 8 },
+  },
+  'progressive-rampup': {
+    summary: 'Slow ramp from low to full rate; find the point detection engages.',
+    useScrubber: true,
+    scrubber: { THRESHOLD_PPS: 80, CEILING_PPS: 35, DETECTION_DELAY_SEC: 3 },
+    generator: { SHAPE: 'ramp', PROFILE: 'ntp', FACTOR: 60, PACKET_FACTOR: 4, PPS: 180, DURATION_SEC: 10 },
+  },
+
+  // --- Multi-vector combos (concurrent generators, distinct profiles) --------
+  'multi-profile-mix': {
+    summary: 'Three synthetic profiles fired together; per-profile amplification breakdown.',
+    useScrubber: false,
+    generators: [
+      { PROFILE: 'dns', SHAPE: 'constant', FACTOR: 40, PACKET_FACTOR: 1, PPS: 60, DURATION_SEC: 6 },
+      { PROFILE: 'ntp', SHAPE: 'wave', FACTOR: 80, PACKET_FACTOR: 4, PPS: 60, DURATION_SEC: 6 },
+      { PROFILE: 'memcached', SHAPE: 'burst', FACTOR: 100, PACKET_FACTOR: 8, PPS: 40, DURATION_SEC: 6 },
+    ],
+  },
+  'mixed-flood-with-legit': {
+    summary: 'Two attack profiles + benign traffic through the scrubber; realistic collateral.',
+    useScrubber: true,
+    withLegit: true,
+    scrubber: { THRESHOLD_PPS: 100, CEILING_PPS: 40, DETECTION_DELAY_SEC: 2 },
+    generators: [
+      { PROFILE: 'dns', SHAPE: 'ramp', FACTOR: 40, PACKET_FACTOR: 2, PPS: 90, DURATION_SEC: 8 },
+      { PROFILE: 'ssdp', SHAPE: 'constant', FACTOR: 30, PACKET_FACTOR: 3, PPS: 70, DURATION_SEC: 8 },
+    ],
+    legit: { PPS: 25, DURATION_SEC: 8 },
+  },
+
+  // --- Mitigation-strategy comparisons (same attack, different scrubber) ------
+  'blocklist-mitigation': {
+    summary: 'Signature-style blocklist: forward legit, drop attack — near-zero collateral.',
+    useScrubber: true,
+    withLegit: true,
+    scrubber: { STRATEGY: 'blocklist', THRESHOLD_PPS: 80, CEILING_PPS: 30, DETECTION_DELAY_SEC: 2 },
+    generator: { SHAPE: 'constant', PROFILE: 'dns', FACTOR: 40, PACKET_FACTOR: 3, PPS: 120, DURATION_SEC: 8 },
+    legit: { PPS: 30, DURATION_SEC: 8 },
+  },
+  'adaptive-mitigation': {
+    summary: 'Adaptive ceiling: loosens when it harms legit traffic, tightens when it does not.',
+    useScrubber: true,
+    withLegit: true,
+    scrubber: { STRATEGY: 'adaptive', THRESHOLD_PPS: 100, CEILING_PPS: 30, DETECTION_DELAY_SEC: 2 },
+    generator: { SHAPE: 'wave', PROFILE: 'ntp', FACTOR: 60, PACKET_FACTOR: 4, PPS: 140, DURATION_SEC: 10 },
+    legit: { PPS: 30, DURATION_SEC: 10 },
+  },
 };
 
 export function scenarioNames() {

@@ -4,6 +4,7 @@ import { createReflector } from './synthetic-reflector/server.mjs';
 import { createScrubber } from './scrubber/server.mjs';
 import { runGenerator } from './generator/generate.mjs';
 import { SCENARIOS, scenarioNames } from './scenarios.mjs';
+import { toVerdict } from './verdict.mjs';
 
 const LOOPBACK = '127.0.0.1';
 const PREFIX = '127.0.0.';
@@ -16,15 +17,69 @@ function stopAsync(c) {
 }
 
 /**
- * Runs a named scenario in-process over loopback (target → [scrubber] →
- * reflector → generator), returns a summary. `overrides` shallow-merges into the
- * scenario's generator/scrubber config (used by tests to shorten durations).
+ * Normalises a scenario's generator config into an array of attack generators.
+ * A scenario may declare a single `generator` (the classic form) or a list of
+ * `generators` (multi-vector combos: distinct profiles/shapes fired together).
+ * `override` shallow-merges into every generator (tests use it to shorten runs).
  */
-export async function runScenario(name, overrides = {}) {
+function attackGenerators(cfg, override = {}) {
+  const list = cfg.generators ?? (cfg.generator ? [cfg.generator] : []);
+  return list.map((g) => ({ ...g, ...override }));
+}
+
+/** Live snapshot of the running chain — shared by the sampler and the summary. */
+function snapshot(target, reflector, scrubber) {
+  return {
+    reflector: {
+      requests: reflector.metrics.requests,
+      bap: reflector.metrics.bap,
+      packetAmplification: reflector.metrics.packetAmplification,
+    },
+    target: {
+      packets: target.metrics.packets,
+      avgPps: target.metrics.avgPps,
+      avgBps: target.metrics.avgBps,
+    },
+    scrubber: scrubber
+      ? {
+          mitigating: scrubber.metrics.mitigating,
+          detectionDelaySec: scrubber.metrics.detectionDelaySec,
+          received: scrubber.metrics.received,
+          forwarded: scrubber.metrics.forwarded,
+          dropped: scrubber.metrics.dropped,
+          collateralPct: scrubber.metrics.collateralPct,
+        }
+      : null,
+  };
+}
+
+/** Per-synthetic-profile breakdown pulled from the reflector's bounded buckets. */
+function perProfile(reflector) {
+  const out = {};
+  for (const [label, b] of reflector.byProfile) {
+    out[label] = {
+      requests: b.requests,
+      inputBytes: b.inputBytes,
+      outputPackets: b.outputPackets,
+      outputBytes: b.outputBytes,
+    };
+  }
+  return out;
+}
+
+/**
+ * Runs a named scenario in-process over loopback (target → [scrubber] →
+ * reflector → generator[s]), returns a summary. `opts.generator`/`opts.scrubber`/
+ * `opts.legit` shallow-merge into the scenario config (used by tests to shorten
+ * durations). `opts.onSample(snapshot)` — if given — is called ~4×/s with a live
+ * view of the chain while the scenario runs (used by the web console).
+ */
+export async function runScenario(name, opts = {}) {
   const cfg = SCENARIOS[name];
   if (!cfg) throw new Error(`unknown scenario ${name}; try: ${scenarioNames().join(', ')}`);
-  const gen = { ...cfg.generator, ...overrides.generator };
-  const scr = { ...(cfg.scrubber ?? {}), ...overrides.scrubber };
+  const gens = attackGenerators(cfg, opts.generator);
+  if (gens.length === 0) throw new Error(`scenario ${name} declares no generator`);
+  const scr = { ...(cfg.scrubber ?? {}), ...opts.scrubber };
 
   const target = createTarget({ LISTEN_HOST: LOOPBACK, LISTEN_PORT: '0' });
   const targetPort = await startAsync(target);
@@ -38,6 +93,7 @@ export async function runScenario(name, overrides = {}) {
       TARGET_HOST: LOOPBACK,
       TARGET_PORT: String(targetPort),
       LAB_CIDR_PREFIX: PREFIX,
+      STRATEGY: scr.STRATEGY ?? 'ceiling',
       THRESHOLD_PPS: String(scr.THRESHOLD_PPS ?? 100),
       CEILING_PPS: String(scr.CEILING_PPS ?? 50),
       DETECTION_DELAY_SEC: String(scr.DETECTION_DELAY_SEC ?? 3),
@@ -54,58 +110,85 @@ export async function runScenario(name, overrides = {}) {
   });
   const reflectorPort = await startAsync(reflector);
 
-  const genEnv = {
+  const genEnvFor = (g) => ({
     REFLECTOR_HOST: LOOPBACK,
     REFLECTOR_PORT: String(reflectorPort),
     LAB_CIDR_PREFIX: PREFIX,
-    FACTOR: String(gen.FACTOR ?? 10),
-    PACKET_FACTOR: String(gen.PACKET_FACTOR ?? 1),
-    PPS: String(gen.PPS ?? 50),
-    SHAPE: gen.SHAPE ?? 'constant',
-    DURATION_SEC: String(gen.DURATION_SEC ?? 4),
+    PROFILE: g.PROFILE ?? 'generic',
+    FACTOR: String(g.FACTOR ?? 10),
+    PACKET_FACTOR: String(g.PACKET_FACTOR ?? 1),
+    PPS: String(g.PPS ?? 50),
+    SHAPE: g.SHAPE ?? 'constant',
+    DURATION_SEC: String(g.DURATION_SEC ?? 4),
     MAX_PACKET_FACTOR: '100',
-  };
+  });
 
+  const legitCfg = cfg.withLegit ? { ...(cfg.legit ?? {}), ...opts.legit } : null;
   const legitEnv =
-    cfg.withLegit && scrubber
+    legitCfg && scrubber
       ? {
           REFLECTOR_HOST: LOOPBACK,
           REFLECTOR_PORT: String(scrubberPort),
           LAB_CIDR_PREFIX: PREFIX,
           MODE: 'legit',
-          PPS: String((overrides.legit ?? cfg.legit)?.PPS ?? 20),
-          DURATION_SEC: genEnv.DURATION_SEC,
+          PPS: String(legitCfg.PPS ?? 20),
+          DURATION_SEC: String(legitCfg.DURATION_SEC ?? gens[0]?.DURATION_SEC ?? 4),
         }
       : null;
 
-  const [attack] = await Promise.all([
-    runGenerator(genEnv),
-    legitEnv ? runGenerator(legitEnv) : Promise.resolve(null),
+  // Live sampler (optional): stream a snapshot of the chain to the console.
+  let sampler = null;
+  if (typeof opts.onSample === 'function') {
+    const emit = () => {
+      try {
+        opts.onSample(snapshot(target, reflector, scrubber));
+      } catch {
+        /* a slow/broken consumer must never crash the run */
+      }
+    };
+    emit();
+    sampler = setInterval(emit, 250);
+    if (typeof sampler.unref === 'function') sampler.unref();
+  }
+
+  const attackRuns = await Promise.all([
+    ...gens.map((g) => runGenerator(genEnvFor(g))),
+    ...(legitEnv ? [runGenerator(legitEnv)] : []),
   ]);
   await sleep(300); // drain in-flight UDP
+  if (sampler) clearInterval(sampler);
 
+  const attacks = attackRuns.slice(0, gens.length);
+  const totalSent = attacks.reduce((n, r) => n + r.sent, 0);
+  const profiles = [...new Set(attacks.map((r) => r.profile))];
+
+  const snap = snapshot(target, reflector, scrubber);
   const summary = {
     scenario: name,
-    generator: { sent: attack.sent, profile: attack.profile },
-    reflector: {
-      requests: reflector.metrics.requests,
-      bap: reflector.metrics.bap,
-      packetAmplification: reflector.metrics.packetAmplification,
-    },
-    target: {
-      packets: target.metrics.packets,
-      avgPps: target.metrics.avgPps,
-      avgBps: target.metrics.avgBps,
-    },
-    scrubber: scrubber
+    // Back-compatible aggregate view (single "attack" across all generators).
+    generator: { sent: totalSent, profile: profiles.length === 1 ? profiles[0] : 'mixed' },
+    // Per-generator detail (multi-vector combos).
+    generators: attacks.map((r) => ({
+      profile: r.profile,
+      shape: r.shape,
+      factor: r.factor,
+      packetFactor: r.packetFactor,
+      sent: r.sent,
+    })),
+    perProfile: perProfile(reflector),
+    reflector: snap.reflector,
+    target: snap.target,
+    scrubber: snap.scrubber
       ? {
-          mitigating: scrubber.metrics.mitigating,
-          detectionDelaySec: scrubber.metrics.detectionDelaySec,
-          dropped: scrubber.metrics.dropped,
-          collateralPct: scrubber.metrics.collateralPct,
+          strategy: scrubber.strategy,
+          mitigating: snap.scrubber.mitigating,
+          detectionDelaySec: snap.scrubber.detectionDelaySec,
+          dropped: snap.scrubber.dropped,
+          collateralPct: snap.scrubber.collateralPct,
         }
       : null,
   };
+  summary.verdict = toVerdict(summary);
 
   await stopAsync(reflector);
   if (scrubber) await stopAsync(scrubber);
@@ -115,14 +198,16 @@ export async function runScenario(name, overrides = {}) {
 
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
-  const name = process.argv[2];
+  const args = process.argv.slice(2);
+  const verdictOnly = args.includes('--verdict');
+  const name = args.find((a) => !a.startsWith('--'));
   if (!name || !SCENARIOS[name]) {
-    console.error(`Usage: node lab/run-scenario.mjs <scenario>\nScenarios:`);
+    console.error(`Usage: node run-scenario.mjs <scenario> [--verdict]\nScenarios:`);
     for (const n of scenarioNames()) console.error(`  ${n} — ${SCENARIOS[n].summary}`);
     process.exit(1);
   }
   runScenario(name)
-    .then((s) => console.log(JSON.stringify(s, null, 2)))
+    .then((s) => console.log(JSON.stringify(verdictOnly ? s.verdict : s, null, 2)))
     .catch((err) => {
       console.error(err.message);
       process.exit(1);
