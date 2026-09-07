@@ -1,0 +1,121 @@
+# WEDOS ShieldTest — isolated synthetic network lab.
+#
+# A safe UDP-amplification MEASUREMENT model — not an amplifier: no source-IP
+# spoofing, no real reflector protocols (the "reflector" is a synthetic JSON
+# service), hard caps on every factor, and an `internal: true` network with NO
+# Docker-managed Internet egress and no published host ports. Never attach this
+# to a production or public network. See docs/network-lab.md.
+#
+#   docker compose up -d lab-target lab-reflector      # bring up the bench
+#   PROFILE=dns PPS=20 DURATION_SEC=10 \
+#     docker compose run --rm lab-generator            # run one synthetic burst
+#   docker compose down                                # tear it down
+services:
+  lab-target:
+    build:
+      context: ./target
+    image: shieldtest-lab-target:latest
+    restart: unless-stopped
+    environment:
+      LISTEN_PORT: 9002
+      METRICS_PORT: 9102 # Prometheus text metrics, scraped over the internal lab net only
+    networks:
+      shieldtest_lab:
+        ipv4_address: 192.168.100.99
+
+  # Optional mitigation node (scrubber). To route the reflector THROUGH it, set
+  # LAB_REFLECTOR_TARGET=192.168.100.60; otherwise the reflector hits the target
+  # directly and the scrubber simply idles.
+  lab-scrubber:
+    build:
+      context: .
+      dockerfile: scrubber/Dockerfile
+    image: shieldtest-lab-scrubber:latest
+    restart: unless-stopped
+    depends_on: [lab-target]
+    environment:
+      LISTEN_PORT: 9005
+      METRICS_PORT: 9105
+      TARGET_HOST: 192.168.100.99
+      TARGET_PORT: 9002
+      LAB_CIDR_PREFIX: 192.168.100.
+      THRESHOLD_PPS: ${LAB_THRESHOLD_PPS:-100}
+      CEILING_PPS: ${LAB_CEILING_PPS:-50}
+      DETECTION_DELAY_SEC: ${LAB_DETECTION_DELAY_SEC:-3}
+    networks:
+      shieldtest_lab:
+        ipv4_address: 192.168.100.60
+
+  lab-reflector:
+    build:
+      context: .
+      dockerfile: synthetic-reflector/Dockerfile
+    image: shieldtest-lab-reflector:latest
+    restart: unless-stopped
+    depends_on: [lab-target]
+    environment:
+      LISTEN_PORT: 9001
+      METRICS_PORT: 9101
+      # Default: straight to the target. Set LAB_REFLECTOR_TARGET=192.168.100.60
+      # to route through the scrubber and study detection/mitigation.
+      TARGET_HOST: ${LAB_REFLECTOR_TARGET:-192.168.100.99}
+      TARGET_PORT: ${LAB_REFLECTOR_TARGET_PORT:-9002}
+      LAB_CIDR_PREFIX: 192.168.100.
+      MAX_FACTOR: ${LAB_MAX_FACTOR:-50}
+      MAX_RESPONSE_BYTES: ${LAB_MAX_RESPONSE_BYTES:-8192}
+      MAX_PACKET_FACTOR: ${LAB_MAX_PACKET_FACTOR:-10}
+    networks:
+      shieldtest_lab:
+        ipv4_address: 192.168.100.50
+
+  lab-generator:
+    build:
+      context: .
+      dockerfile: generator/Dockerfile
+    image: shieldtest-lab-generator:latest
+    environment:
+      REFLECTOR_HOST: 192.168.100.50
+      REFLECTOR_PORT: 9001
+      LAB_CIDR_PREFIX: 192.168.100.
+      # Synthetic protocol shape (amplification factors): generic | dns | ssdp | ntp | memcached.
+      PROFILE: ${PROFILE:-generic}
+      FACTOR: ${FACTOR:-10}
+      PACKET_FACTOR: ${PACKET_FACTOR:-1}
+      PPS: ${PPS:-20}
+      # Rate-over-time shape: constant | ramp | wave | burst.
+      SHAPE: ${SHAPE:-constant}
+      DURATION_SEC: ${DURATION_SEC:-10}
+      MAX_PPS: ${LAB_MAX_PPS:-500}
+      MAX_DURATION_SEC: ${LAB_MAX_DURATION_SEC:-60}
+      MAX_PACKET_FACTOR: ${LAB_MAX_PACKET_FACTOR:-10}
+    networks:
+      shieldtest_lab:
+        ipv4_address: 192.168.100.10
+
+  # Optional benign background traffic, to measure collateral at the scrubber.
+  lab-legit:
+    build:
+      context: .
+      dockerfile: generator/Dockerfile
+    image: shieldtest-lab-generator:latest
+    environment:
+      MODE: legit
+      SHAPE: constant
+      REFLECTOR_HOST: 192.168.100.60
+      REFLECTOR_PORT: 9005
+      LAB_CIDR_PREFIX: 192.168.100.
+      PPS: ${LAB_LEGIT_PPS:-10}
+      DURATION_SEC: ${DURATION_SEC:-10}
+      MAX_PPS: ${LAB_MAX_PPS:-500}
+      MAX_DURATION_SEC: ${LAB_MAX_DURATION_SEC:-60}
+    networks:
+      shieldtest_lab:
+        ipv4_address: 192.168.100.11
+
+networks:
+  shieldtest_lab:
+    name: shieldtest_lab
+    internal: true # no Docker-managed Internet egress
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24

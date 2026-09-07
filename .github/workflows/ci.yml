@@ -1,0 +1,18 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # No dependencies — the lab is pure Node. Run the safety-invariant tests
+      # (caps hold under fuzzing, the net-guard refuses anything outside the lab
+      # CIDR, closed-loop detection/mitigation). These need no Docker.
+      - run: node --test "test/*.test.mjs"

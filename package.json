@@ -1,0 +1,17 @@
+{
+  "name": "shieldtest-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Isolated synthetic UDP-amplification measurement lab (extracted from WEDOS ShieldTest). A measurement model, not an amplifier: no source-IP spoofing, no real reflector protocols, hard caps, isolated network.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "scenario": "node run-scenario.mjs",
+    "up": "docker compose up -d lab-target lab-reflector",
+    "down": "docker compose down",
+    "burst": "docker compose run --rm lab-generator"
+  }
+}
