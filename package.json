@@ -10,6 +10,7 @@
   "scripts": {
     "test": "node --test \"test/*.test.mjs\"",
     "console": "node console/server.mjs",
+    "runner": "node runner.mjs",
     "scenario": "node run-scenario.mjs",
     "verdict": "node run-scenario.mjs --verdict",
     "up": "docker compose up -d lab-target lab-reflector",

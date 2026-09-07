@@ -107,6 +107,26 @@ records **class A/B only** and rejects class C. So this verdict is standalone,
 read-only evidence (attach it to a report, diff two runs, or scrape the same
 numbers from Prometheus) — it is **never** posted as a class-A/B verdict.
 
+## Governed dispatch runner
+
+The ShieldTest control plane can centralize the bench behind its CISO role
+(record-and-dispatch): a CISO records an authorized run request in the app, and
+**this runner** — running here, outside the control plane — claims it, executes
+the scenario in the lab, and posts a read-only class-C verdict back. The control
+plane never emits the traffic.
+
+```bash
+BENCH_API_URL=https://shieldtest.internal \
+BENCH_RUNNER_TOKEN=<same token as the control plane> \
+RUNNER_ID=lab-runner-1 \
+npm run runner            # poll-claim-execute-report loop (RUNNER_ONCE=1 for one job)
+```
+
+The runner only ever receives an **allowlisted scenario name** and a lab-target
+label from the governed queue — never an arbitrary host, rate or duration. It
+fails closed without `BENCH_API_URL` and `BENCH_RUNNER_TOKEN`. See ShieldTest's
+`docs/drs-validation-policy.md` §8.
+
 ## Relationship to ShieldTest
 
 The two connect **only through a read-only, governed contract** — never a live
