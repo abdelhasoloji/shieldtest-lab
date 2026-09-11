@@ -1,0 +1,24 @@
+{
+  "_comment": "Authorized external test targets. Copy to targets.authorized.json (git-ignored) and provision a real DNS-TXT token out of band. An empty/missing list authorizes NOTHING (fail-closed). Only hosts listed here are reachable by external resilience tests.",
+  "targets": [
+    {
+      "host": "bank.cz",
+      "kind": "wedos-test",
+      "owner": "WEDOS (internal test target)",
+      "authorizationRef": "INTERNAL-TEST-WEDOS",
+      "verification": {
+        "method": "dns-txt",
+        "name": "_shieldtest.bank.cz",
+        "token": "REPLACE_WITH_PROVISIONED_TOKEN"
+      },
+      "window": "always",
+      "expiresAt": null,
+      "caps": {
+        "maxRps": 200,
+        "maxStreams": 2000,
+        "maxDurationSec": 60,
+        "maxConcurrency": 64
+      }
+    }
+  ]
+}

@@ -1,3 +1,6 @@
 node_modules/
 *.log
 .DS_Store
+
+# Real external-target authorization registry (contains live domain-control tokens)
+external/targets.authorized.json
