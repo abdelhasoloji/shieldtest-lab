@@ -1,0 +1,33 @@
+# Prometheus scrape config for the isolated ShieldTest lab.
+# Prometheus runs ON the internal `shieldtest_lab` network and reaches each
+# service by its fixed IP (see docker-compose.yml). Only services that actually
+# serve /metrics (METRICS_PORT > 0 in compose) are listed.
+global:
+  scrape_interval: 5s
+  scrape_timeout: 4s
+  external_labels:
+    monitor: shieldtest-lab
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: lab-reflector
+    static_configs:
+      - targets: ['192.168.100.50:9101']
+        labels: { role: reflector }
+
+  - job_name: lab-target
+    static_configs:
+      - targets: ['192.168.100.99:9102']
+        labels: { role: target }
+
+  # Optional mitigation node — only up when you run lab-scrubber.
+  - job_name: lab-scrubber
+    static_configs:
+      - targets: ['192.168.100.60:9105']
+        labels: { role: scrubber }
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['127.0.0.1:9090']

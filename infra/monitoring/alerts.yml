@@ -1,0 +1,61 @@
+# Prometheus alerting rules for the isolated ShieldTest lab.
+#
+# These are study/operability signals for a bounded bench run, not a production
+# pager. Thresholds are expressed RELATIVE to the lab's hard caps (see
+# docker-compose.yml): MAX_FACTOR=50, MAX_PPS=500, CEILING_PPS=50,
+# DETECTION_DELAY_SEC=3. They surface in the Prometheus UI and in Grafana; wiring
+# Alertmanager / notifications is a follow-up.
+groups:
+  - name: shieldtest-lab
+    rules:
+      - alert: LabTargetDown
+        expr: up == 0
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "Lab metrics endpoint {{ $labels.job }} is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} ({{ $labels.job }}) for 1m."
+
+      - alert: ReflectorNearAmplificationCap
+        # BAP approaching MAX_FACTOR (50): runs are riding the cap.
+        expr: shieldtest_reflector_bap > 45
+        for: 1m
+        labels: { severity: info }
+        annotations:
+          summary: "Reflector BAP near the amplification cap"
+          description: "shieldtest_reflector_bap={{ $value }} (MAX_FACTOR=50)."
+
+      - alert: TargetNearPpsCap
+        # Ingress approaching MAX_PPS (500).
+        expr: shieldtest_target_avg_pps > 450
+        for: 1m
+        labels: { severity: info }
+        annotations:
+          summary: "Target ingress near the PPS cap"
+          description: "shieldtest_target_avg_pps={{ $value }} (MAX_PPS=500)."
+
+      - alert: ScrubberHighCollateral
+        # Mitigation is dropping a large share of legitimate traffic.
+        expr: shieldtest_scrubber_collateral_pct > 20
+        for: 30s
+        labels: { severity: warning }
+        annotations:
+          summary: "Scrubber collateral above 20%"
+          description: "collateral_pct={{ $value }} — mitigation is harming legit traffic."
+
+      - alert: ScrubberSlowDetection
+        # Detection delay well past the configured DETECTION_DELAY_SEC (3s).
+        expr: shieldtest_scrubber_detection_delay_seconds > 5
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "Scrubber detection delay above 5s"
+          description: "detection_delay_seconds={{ $value }} (configured DETECTION_DELAY_SEC=3)."
+
+      - alert: ScrubberSustainedMitigation
+        expr: shieldtest_scrubber_mitigating == 1
+        for: 5m
+        labels: { severity: info }
+        annotations:
+          summary: "Scrubber has been mitigating for 5m"
+          description: "Continuous mitigation on {{ $labels.instance }} — expected only during an active study burst."

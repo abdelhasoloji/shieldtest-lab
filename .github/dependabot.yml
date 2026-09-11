@@ -1,0 +1,22 @@
+# Keep the few external things the lab pins current: GitHub Actions and the
+# Docker base images (node:*-alpine). The lab has no runtime npm dependencies,
+# so there is no npm ecosystem to track.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: docker
+    directories:
+      - /target
+      - /synthetic-reflector
+      - /scrubber
+      - /generator
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
