@@ -7,12 +7,41 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    name: test (node ${{ matrix.node }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      # No dependencies — the lab is pure Node. Run the safety-invariant tests
-      # (caps hold under fuzzing, the net-guard refuses anything outside the lab
-      # CIDR, closed-loop detection/mitigation). These need no Docker.
-      - run: node --test "test/*.test.mjs"
+          node-version: ${{ matrix.node }}
+      # Zero-dependency lint: every .mjs must at least parse. Cheap guard that a
+      # syntax error can never reach main even before the test suite runs.
+      - name: Syntax check (node --check)
+        run: |
+          set -e
+          find . -name '*.mjs' -not -path './node_modules/*' -print0 \
+            | xargs -0 -n1 node --check
+      # Safety-invariant suite (caps hold under fuzzing, the net-guard refuses
+      # anything outside the lab CIDR, closed-loop detection/mitigation). Pure
+      # Node — no Docker, no install.
+      - name: Test
+        run: node --test "test/*.test.mjs"
+
+  compose:
+    runs-on: ubuntu-latest
+    name: compose config validation
+    steps:
+      - uses: actions/checkout@v4
+      # Catch drift in docker-compose.yml and the opt-in monitoring overlay
+      # without building or running any image.
+      - name: Validate base compose
+        run: docker compose -f docker-compose.yml config -q
+      - name: Validate base + monitoring overlay
+        run: >-
+          docker compose
+          -f docker-compose.yml
+          -f infra/monitoring/docker-compose.metrics.yml
+          config -q
