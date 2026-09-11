@@ -12,6 +12,13 @@
 #   docker compose down                                # tear it down
 services:
   lab-target:
+    # Runtime hardening: no privilege escalation, drop all Linux caps, read-only
+    # rootfs (no service writes to disk), a small tmpfs for /tmp, bounded PIDs.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    pids_limit: 128
     build:
       context: ./target
     image: shieldtest-lab-target:latest
@@ -27,6 +34,13 @@ services:
   # LAB_REFLECTOR_TARGET=192.168.100.60; otherwise the reflector hits the target
   # directly and the scrubber simply idles.
   lab-scrubber:
+    # Runtime hardening: no privilege escalation, drop all Linux caps, read-only
+    # rootfs (no service writes to disk), a small tmpfs for /tmp, bounded PIDs.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    pids_limit: 128
     build:
       context: .
       dockerfile: scrubber/Dockerfile
@@ -47,6 +61,13 @@ services:
         ipv4_address: 192.168.100.60
 
   lab-reflector:
+    # Runtime hardening: no privilege escalation, drop all Linux caps, read-only
+    # rootfs (no service writes to disk), a small tmpfs for /tmp, bounded PIDs.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    pids_limit: 128
     build:
       context: .
       dockerfile: synthetic-reflector/Dockerfile
@@ -69,6 +90,13 @@ services:
         ipv4_address: 192.168.100.50
 
   lab-generator:
+    # Runtime hardening: no privilege escalation, drop all Linux caps, read-only
+    # rootfs (no service writes to disk), a small tmpfs for /tmp, bounded PIDs.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    pids_limit: 128
     build:
       context: .
       dockerfile: generator/Dockerfile
@@ -94,6 +122,13 @@ services:
 
   # Optional benign background traffic, to measure collateral at the scrubber.
   lab-legit:
+    # Runtime hardening: no privilege escalation, drop all Linux caps, read-only
+    # rootfs (no service writes to disk), a small tmpfs for /tmp, bounded PIDs.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    pids_limit: 128
     build:
       context: .
       dockerfile: generator/Dockerfile
