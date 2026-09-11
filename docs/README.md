@@ -24,6 +24,7 @@ Point d'entrée de la doc du banc. Toute la doc serveurs est **ancrée au code**
 ## Conception & sûreté
 
 - [Network lab — design & rationale de sûreté](network-lab.md)
+- [Contrat inter-dépôts (banc ↔ plan de contrôle)](cross-repo-contract.md)
 - [Couverture & méthode de la doc](COVERAGE.md)
 
 ## Voir aussi

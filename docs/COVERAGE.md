@@ -76,6 +76,16 @@ affirmation ou la re-vérifier en une commande.
   `/metrics?x=1` renverrait donc 404 sur le reflector uniquement. Fait observé,
   pas corrigé.
 
+## Contrat inter-dépôts (désormais documenté)
+
+Le lien vers le plan de contrôle `Ddostester`, auparavant simplement référencé,
+est maintenant documenté et **vérifié des deux côtés** dans
+[`cross-repo-contract.md`](cross-repo-contract.md) : endpoints du runner
+(`app.ts:1047-1118` côté plan de contrôle ↔ `runner.mjs:22-38` ici) et
+connecteurs pull (`/protection`, `/telemetry` ici ↔ `PollProtectionProvider` /
+`PollTargetTelemetryProvider` côté plan de contrôle). Les fiches serveur du plan
+de contrôle sont dans `Ddostester/docs/servers/`.
+
 ## Comment re-vérifier
 
 ```bash
