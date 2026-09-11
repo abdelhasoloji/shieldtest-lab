@@ -35,16 +35,12 @@ jobs:
     name: compose config validation
     steps:
       - uses: actions/checkout@v4
-      # Catch drift in docker-compose.yml and the opt-in monitoring overlay
+      # Catch drift in docker-compose.yml and the opt-in monitoring profile
       # without building or running any image.
       - name: Validate base compose
-        run: docker compose -f docker-compose.yml config -q
-      - name: Validate base + monitoring overlay
-        run: >-
-          docker compose
-          -f docker-compose.yml
-          -f infra/monitoring/docker-compose.metrics.yml
-          config -q
+        run: docker compose config -q
+      - name: Validate base + monitoring profile
+        run: docker compose --profile monitoring config -q
 
   smoke:
     runs-on: ubuntu-latest
@@ -57,4 +53,4 @@ jobs:
       # so it catches image regressions (missing COPY, unreadable perms) that
       # config validation alone cannot.
       - name: Run observability smoke test
-        run: bash infra/monitoring/smoke.sh
+        run: bash deploy/monitoring/smoke.sh
