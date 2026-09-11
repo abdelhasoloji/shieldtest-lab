@@ -147,6 +147,53 @@ services:
       shieldtest_lab:
         ipv4_address: 192.168.100.11
 
+  # ---- Monitoring (opt-in: `--profile monitoring`) ----------------------------
+  # Prometheus + Grafana. Prometheus joins the internal lab net to scrape the
+  # reflector/target/scrubber, and a private `monitoring` bridge carries Grafana
+  # <-> Prometheus. Both publish on 127.0.0.1 only — reach the UI by SSH tunnel
+  # (`ssh -L 3000:127.0.0.1:3000 <vps>`), never a public port.
+  lab-prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    volumes:
+      - ./deploy/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - lab-prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - shieldtest_lab
+      - monitoring
+
+  lab-grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana:11.1.4
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [lab-prometheus]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./deploy/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - lab-grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - monitoring
+
 networks:
   shieldtest_lab:
     name: shieldtest_lab
@@ -154,3 +201,10 @@ networks:
     ipam:
       config:
         - subnet: 192.168.100.0/24
+  monitoring:
+    name: shieldtest_monitoring
+    driver: bridge
+
+volumes:
+  lab-prometheus-data:
+  lab-grafana-data:

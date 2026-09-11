@@ -1,0 +1,28 @@
+# Prometheus scrape config for the WEDOS ShieldTest isolated network lab.
+#
+# Prometheus is attached to the internal `shieldtest_lab` network and scrapes the
+# reflector, target and scrubber Prometheus text endpoints over that lab net only
+# (the network is `internal: true`, so there is no Internet egress). The lab
+# targets show as `down` until the bench services are running.
+global:
+  scrape_interval: 5s
+  scrape_timeout: 4s
+  external_labels:
+    monitor: shieldtest-lab
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: shieldtest-lab
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["192.168.100.99:9102"]
+        labels:
+          component: target
+      - targets: ["192.168.100.50:9101"]
+        labels:
+          component: reflector
+      - targets: ["192.168.100.60:9105"]
+        labels:
+          component: scrubber

@@ -140,12 +140,18 @@ lab network:
 - `shieldtest_target_packets_total`, `_bytes_total`, `_avg_pps`, `_avg_bps`
 
 The `monitoring` profile's Prometheus is attached to the lab network and already
-scrapes both (job `shieldtest-lab`); the lab targets show as `down` until the
-`network-lab` profile is running.
+scrapes the reflector, target and scrubber (job `shieldtest-lab`); those targets
+show as `down` until the bench services are running.
 
 ```bash
-docker compose --profile monitoring --profile network-lab up -d
-# then query e.g. shieldtest_reflector_bap in Grafana (SSH-tunnel to :3000)
+npm run up                                   # bring up the bench (target + reflector)
+docker compose up -d lab-scrubber            # (optional) add the mitigation node
+docker compose --profile monitoring up -d    # add Prometheus + Grafana
+
+# Grafana and Prometheus publish on 127.0.0.1 only — reach them by SSH tunnel:
+#   ssh -L 3000:127.0.0.1:3000 -L 9090:127.0.0.1:9090 <vps>
+# then open http://127.0.0.1:3000 (admin / $GRAFANA_ADMIN_PASSWORD, default "admin")
+# or query e.g. shieldtest_reflector_bap in Prometheus at http://127.0.0.1:9090
 ```
 
 A Grafana dashboard **"WEDOS ShieldTest — Network Lab"** is auto-provisioned

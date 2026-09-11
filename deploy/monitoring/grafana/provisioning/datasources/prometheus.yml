@@ -1,4 +1,7 @@
+# Grafana datasource provisioning — the lab's Prometheus, reached over the
+# private `monitoring` bridge network by its Compose service name.
 apiVersion: 1
+
 datasources:
   - name: Prometheus
     uid: shieldtest-prometheus
@@ -7,3 +10,5 @@ datasources:
     url: http://lab-prometheus:9090
     isDefault: true
     editable: false
+    jsonData:
+      timeInterval: 5s
