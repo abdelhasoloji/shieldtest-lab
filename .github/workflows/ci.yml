@@ -13,7 +13,7 @@ jobs:
         node: ['22', '24']
     name: test (node ${{ matrix.node }})
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     name: compose config validation
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Catch drift in docker-compose.yml and the opt-in monitoring profile
       # without building or running any image.
       - name: Validate base compose
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     name: observability smoke test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Actually builds and runs the images (target + reflector + Prometheus)
       # and asserts Prometheus scrapes live lab metrics. This is the only job
       # that exercises the Dockerfiles at runtime — `node --test` never does —
