@@ -27,6 +27,7 @@ services:
       - --web.listen-address=0.0.0.0:9090
     volumes:
       - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
       - lab-prometheus-data:/prometheus
     ports:
       - "127.0.0.1:9090:9090" # loopback only — reach via SSH tunnel

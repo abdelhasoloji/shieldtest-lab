@@ -54,6 +54,21 @@ This is the in-repo, reproducible version of the observability stack. The VPS ma
 also run Prometheus/Grafana natively; this overlay is for local runs and as the
 source of truth for the dashboard JSON and scrape config.
 
+## Alerting rules
+
+`alerts.yml` ships study/operability alerts, loaded by Prometheus via
+`rule_files` and visible in its UI (wiring Alertmanager/notifications is a
+follow-up). Thresholds are relative to the lab's hard caps:
+
+| Alert | Fires when |
+| --- | --- |
+| `LabTargetDown` | a metrics endpoint is unscrapable for 1m (`up == 0`) |
+| `ReflectorNearAmplificationCap` | `shieldtest_reflector_bap > 45` (cap 50) |
+| `TargetNearPpsCap` | `shieldtest_target_avg_pps > 450` (cap 500) |
+| `ScrubberHighCollateral` | `shieldtest_scrubber_collateral_pct > 20` |
+| `ScrubberSlowDetection` | `shieldtest_scrubber_detection_delay_seconds > 5` |
+| `ScrubberSustainedMitigation` | `shieldtest_scrubber_mitigating == 1` for 5m |
+
 ## Safety
 
 - No change to the base compose or the `internal: true` data-plane network.
