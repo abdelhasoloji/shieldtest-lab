@@ -35,6 +35,13 @@ docker compose -f docker-compose.yml \
   -f infra/monitoring/docker-compose.metrics.yml down
 ```
 
+## Verify (smoke test)
+
+`bash infra/monitoring/smoke.sh` brings up target + reflector + Prometheus,
+drives one bounded burst, asserts Prometheus scrapes the lab metrics
+(`up == 1`) and the reflector reports a non-zero amplification, then tears
+everything down. Needs a running Docker daemon.
+
 ## What's provisioned
 
 - **Datasource** — Prometheus (`grafana/provisioning/datasources/`), uid
