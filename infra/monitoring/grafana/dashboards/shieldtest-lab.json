@@ -1,0 +1,407 @@
+{
+  "uid": "shieldtest-lab-overview",
+  "title": "ShieldTest Lab \u2014 overview",
+  "tags": [
+    "shieldtest",
+    "lab"
+  ],
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Reflector BAP (byte amplification)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "shieldtest-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "shieldtest_reflector_bap"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Packet amplification",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "shieldtest-prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "shieldtest_reflector_packet_amplification"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Scrubber state",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "shieldtest-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "idle"
+                },
+                "1": {
+                  "text": "MITIGATING",
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "shieldtest_scrubber_mitigating"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Collateral %",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "shieldtest-prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "shieldtest_scrubber_collateral_pct"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Target ingress rate",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "shieldtest-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "shieldtest_target_avg_pps",
+          "legendFormat": "pps"
+        },
+        {
+          "refId": "B",
+          "expr": "shieldtest_target_avg_bps",
+          "legendFormat": "bps"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Reflector bytes in/out (rate)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "shieldtest-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(shieldtest_reflector_input_bytes_total[1m])",
+          "legendFormat": "in B/s"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(shieldtest_reflector_output_bytes_total[1m])",
+          "legendFormat": "out B/s"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Scrubber forwarded vs dropped (rate)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "shieldtest-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(shieldtest_scrubber_forwarded_total[1m])",
+          "legendFormat": "forwarded"
+        },
+        {
+          "refId": "B",
+          "expr": "rate(shieldtest_scrubber_dropped_total[1m])",
+          "legendFormat": "dropped"
+        },
+        {
+          "refId": "C",
+          "expr": "rate(shieldtest_scrubber_dropped_legit_total[1m])",
+          "legendFormat": "dropped legit"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Detection delay (s)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "shieldtest-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "shieldtest_scrubber_detection_delay_seconds",
+          "legendFormat": "delay"
+        }
+      ]
+    }
+  ]
+}

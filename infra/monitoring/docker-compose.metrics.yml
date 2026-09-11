@@ -1,0 +1,64 @@
+# Opt-in observability overlay for the ShieldTest lab.
+#
+# WHY: the base bench exposes Prometheus text metrics (reflector :9101,
+# target :9102, scrubber :9105) but nothing scrapes them, so the numbers that
+# are the whole point of the bench (amplification factor, collateral, detection
+# delay) never reach a dashboard.
+#
+# HOW (isolation-preserving): Prometheus JOINS the internal `shieldtest_lab`
+# network and scrapes the services by their fixed lab IPs. NO data-plane port is
+# published; only Prometheus' and Grafana's own web UIs are published on
+# 127.0.0.1 (loopback) through a separate `monitoring` bridge. The base compose
+# and its `internal: true` guarantee are untouched.
+#
+# Usage:
+#   docker compose up -d lab-target lab-reflector          # (optionally lab-scrubber)
+#   docker compose -f docker-compose.yml \
+#     -f infra/monitoring/docker-compose.metrics.yml up -d lab-prometheus lab-grafana
+#   ssh -L 3000:127.0.0.1:3000 <vps>    # then open http://127.0.0.1:3000 (admin/admin)
+services:
+  lab-prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.listen-address=0.0.0.0:9090
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - lab-prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090" # loopback only — reach via SSH tunnel
+    networks:
+      - shieldtest_lab # to scrape the lab services by their fixed IPs
+      - monitoring     # to be reachable from Grafana and the published loopback port
+
+  lab-grafana:
+    image: grafana/grafana-oss:11.4.0
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [lab-prometheus]
+    environment:
+      GF_SERVER_HTTP_ADDR: 0.0.0.0
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - lab-grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000" # loopback only — reach via SSH tunnel
+    networks:
+      - monitoring
+
+volumes:
+  lab-prometheus-data:
+  lab-grafana-data:
+
+networks:
+  # `shieldtest_lab` is defined (internal: true) in the base compose file.
+  monitoring:
+    name: shieldtest_monitoring
+    driver: bridge
