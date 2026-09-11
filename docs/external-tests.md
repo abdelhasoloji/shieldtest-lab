@@ -85,6 +85,38 @@ claims it, **re-checks the gate and re-verifies domain control**, clamps to caps
 runs, and posts the verdict back — the same governed shape as the synthetic
 runner (`runner.mjs`), never an arbitrary host/rate/duration off the wire.
 
+## Campaigns (orchestration)
+
+A **campaign** is a named, allowlisted plan of governed steps against ONE
+authorized target — the orchestration layer above single runs. Same golden rule
+as the lab's scenarios: the control panel launches a campaign **by name** from
+the catalogue (`external/campaigns.mjs`), never an arbitrary step list off the
+wire.
+
+- `external/campaigns.mjs` — named templates (`h2-smoke`, `h2-ramp`), each a
+  sequence of `{ vector, rps, streams, durationSec, concurrency }` steps plus a
+  `cooldownSec`. `resolveCampaign` refuses anything not in the catalogue.
+- `external/run-campaign.mjs` — the orchestrator. It authorizes + verifies the
+  target **once** up front, then for each step clamps to the target caps and the
+  vector ceilings, runs the vector, collects a step verdict, and evaluates a
+  **circuit-breaker**: a health probe after each step stops the campaign (instead
+  of ramping) if the target is degrading. `DRY_RUN=1` (default) returns the full
+  capped plan without sending traffic.
+- Campaign verdict (`toCampaignVerdict`, `shieldtest.external.campaign/v1`)
+  aggregates the step verdicts into `RESILIENT` / `DEGRADED` / `ABORTED`.
+
+```bash
+# dry-run a campaign: prove authorization, see the capped plan, send nothing
+AUTHORIZED_TARGETS_FILE=external/targets.authorized.json \
+TARGET=bank.cz CAMPAIGN=h2-ramp node external/run-campaign.mjs
+
+# execute (inside the window, token live)
+DRY_RUN=0 AUTHORIZED_TARGETS_FILE=... TARGET=bank.cz CAMPAIGN=h2-ramp node external/run-campaign.mjs
+```
+
+Invariants locked by `test/external-campaign.test.mjs` (named-only, fail-closed,
+dry-run sends nothing, aggregation, circuit-breaker stops the ramp).
+
 ## Safety rails (non-negotiable)
 
 - Fail-closed everywhere: no registry, no target, no live token, outside window → refuse.

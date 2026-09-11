@@ -16,6 +16,7 @@
     "up": "docker compose up -d lab-target lab-reflector",
     "down": "docker compose down",
     "burst": "docker compose run --rm lab-generator",
-    "external": "node external/run-external.mjs"
+    "external": "node external/run-external.mjs",
+    "campaign": "node external/run-campaign.mjs"
   }
 }

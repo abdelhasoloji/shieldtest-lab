@@ -48,3 +48,42 @@ export function toExternalVerdict(summary, opts = {}) {
     generatedAt: new Date().toISOString(),
   };
 }
+
+// ---- Campaign aggregation --------------------------------------------------
+
+export const CAMPAIGN_VERDICT_SCHEMA = 'shieldtest.external.campaign/v1';
+
+export const CAMPAIGN_OUTCOMES = Object.freeze([
+  'RESILIENT', // every executed step was ABSORBED or MITIGATED_GOAWAY, ran to completion
+  'DEGRADED', // at least one step degraded the target
+  'ABORTED', // circuit-breaker stopped the campaign before completion
+]);
+
+/** Aggregate per-step verdicts into a campaign outcome. Pure. */
+export function classifyCampaign({ stepVerdicts, aborted }) {
+  if (aborted) return 'ABORTED';
+  if ((stepVerdicts ?? []).some((v) => v.outcome === 'DEGRADED')) return 'DEGRADED';
+  return 'RESILIENT';
+}
+
+export function toCampaignVerdict(
+  { campaign, target, stepVerdicts = [], aborted = false, abortReason = null },
+  opts = {},
+) {
+  return {
+    schema: CAMPAIGN_VERDICT_SCHEMA,
+    campaign,
+    target: target ?? null,
+    authorizationRef: opts.authorizationRef ?? null,
+    stepsPlanned: opts.stepsPlanned ?? stepVerdicts.length,
+    stepsExecuted: stepVerdicts.length,
+    aborted,
+    abortReason,
+    steps: stepVerdicts,
+    outcome: classifyCampaign({ stepVerdicts, aborted }),
+    drsClass: null, // assigned by the control plane per drs-validation-policy
+    runner: opts.runner ?? 'shieldtest-external',
+    source: 'shieldtest-external',
+    generatedAt: new Date().toISOString(),
+  };
+}

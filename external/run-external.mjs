@@ -10,7 +10,7 @@ import { toExternalVerdict } from './verdict.mjs';
 //   - DRY_RUN=1 (the default) authorizes + verifies but sends NO traffic.
 // Only when DRY_RUN=0 is explicitly set does it run the bounded test.
 
-const VECTORS = { 'http2-rapid-reset': runRapidReset };
+export const VECTORS = { 'http2-rapid-reset': runRapidReset };
 
 export async function dispatchExternal(env = process.env, { resolver } = {}) {
   const file = env.AUTHORIZED_TARGETS_FILE;
