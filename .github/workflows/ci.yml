@@ -45,3 +45,16 @@ jobs:
           -f docker-compose.yml
           -f infra/monitoring/docker-compose.metrics.yml
           config -q
+
+  smoke:
+    runs-on: ubuntu-latest
+    name: observability smoke test
+    steps:
+      - uses: actions/checkout@v4
+      # Actually builds and runs the images (target + reflector + Prometheus)
+      # and asserts Prometheus scrapes live lab metrics. This is the only job
+      # that exercises the Dockerfiles at runtime — `node --test` never does —
+      # so it catches image regressions (missing COPY, unreadable perms) that
+      # config validation alone cannot.
+      - name: Run observability smoke test
+        run: bash infra/monitoring/smoke.sh
