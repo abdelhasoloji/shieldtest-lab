@@ -17,6 +17,16 @@ export const PROFILES = {
   ssdp: { factor: 30, packetFactor: 1, referenceBap: 31, note: 'SSDP/UPnP discovery reply' },
   ntp: { factor: 100, packetFactor: 6, referenceBap: 557, note: 'NTP monlist-style burst' },
   memcached: { factor: 100, packetFactor: 10, referenceBap: 10000, note: 'memcached stats flood' },
+  // Additional reflected-UDP shapes (US-CERT TA14-017 + public reports). Values
+  // are the requested SHAPE; the reflector still clamps to MAX_FACTOR /
+  // MAX_PACKET_FACTOR at runtime, so the *effective* BAP is what the metrics say.
+  cldap: { factor: 56, packetFactor: 1, referenceBap: 56, note: 'CLDAP directory query reply' },
+  chargen: { factor: 100, packetFactor: 4, referenceBap: 358, note: 'chargen character stream' },
+  ripv1: { factor: 100, packetFactor: 1, referenceBap: 131, note: 'RIPv1 route-table reply' },
+  arms: { factor: 35, packetFactor: 1, referenceBap: 35, note: 'Apple Remote Management' },
+  wsd: { factor: 100, packetFactor: 3, referenceBap: 300, note: 'WS-Discovery probe reply' },
+  tftp: { factor: 60, packetFactor: 1, referenceBap: 60, note: 'TFTP read-request reply' },
+  qotd: { factor: 100, packetFactor: 1, referenceBap: 140, note: 'QOTD quote reply' },
 };
 
 export const DEFAULT_PROFILE = 'generic';
