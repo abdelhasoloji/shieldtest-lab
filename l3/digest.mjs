@@ -18,6 +18,12 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
+/** Canonical (key-sorted) JSON string — stable regardless of key order. Exported
+ *  so signing/verification hash exactly the same bytes on both sides. */
+export function canonicalJson(value) {
+  return canonical(value);
+}
+
 /** SHA-256 hex of any JSON-serializable value, over its canonical form. */
 export function sha256Hex(value) {
   return createHash('sha256').update(canonical(value)).digest('hex');
