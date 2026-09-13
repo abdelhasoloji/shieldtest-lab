@@ -53,13 +53,21 @@ export function createScrubber(env = process.env) {
   ) {
     throw new Error('DETECTION_DELAY_SEC must be between 0 and 60');
   }
-  const STRATEGIES = new Set(['ceiling', 'blocklist', 'adaptive']);
+  const STRATEGIES = new Set(['ceiling', 'blocklist', 'adaptive', 'token-bucket']);
   if (!STRATEGIES.has(STRATEGY)) {
     throw new Error(`STRATEGY must be one of ${[...STRATEGIES].join(', ')}`);
   }
   // Adaptive raises/decays the effective ceiling by this many pps per window,
   // bounded to [CEILING_PPS, THRESHOLD_PPS].
   const ADAPT_STEP_PPS = Math.max(1, Math.round((THRESHOLD_PPS - CEILING_PPS) / 4));
+  // Token-bucket: refill at CEILING_PPS tokens/s with a burst capacity of
+  // BUCKET_BURST (default = one second of ceiling), so a short burst passes but
+  // the sustained rate is capped at CEILING_PPS — a smoother, standard rate
+  // limiter vs the hard per-window `ceiling`. Bounded to [CEILING_PPS, THRESHOLD_PPS].
+  const BUCKET_BURST = Math.max(
+    1,
+    Math.min(THRESHOLD_PPS, Number(env.BUCKET_BURST) || CEILING_PPS),
+  );
 
   const output = dgram.createSocket('udp4');
   let inputSocket = null;
@@ -79,7 +87,20 @@ export function createScrubber(env = process.env) {
     forwardedThisWindow: 0,
     droppedLegitThisWindow: 0, // collateral observed in the current window (adaptive input)
     overThresholdSince: null, // seconds counter of sustained over-threshold
+    tokens: BUCKET_BURST, // token-bucket: available tokens (starts full)
+    lastRefillMs: Date.now(), // token-bucket: last continuous-refill timestamp
   };
+
+  // Token-bucket continuous refill: add CEILING_PPS tokens per elapsed second,
+  // capped at the burst capacity. Called on each packet so the rate is smooth,
+  // not quantised to the 1s tick. `now` is injectable for deterministic tests.
+  function refillTokens(now = Date.now()) {
+    const add = ((now - state.lastRefillMs) / 1000) * CEILING_PPS;
+    if (add > 0) {
+      state.tokens = Math.min(BUCKET_BURST, state.tokens + add);
+      state.lastRefillMs = now;
+    }
+  }
 
   function drop(isLegit) {
     state.dropped++;
@@ -118,6 +139,16 @@ export function createScrubber(env = process.env) {
         return state.forwardedThisWindow >= state.effectiveCeiling
           ? drop(isLegit)
           : forward(isLegit);
+      case 'token-bucket': {
+        // Smooth per-rate limit: forward while a token is available, refilling
+        // continuously at CEILING_PPS with a bounded burst.
+        refillTokens();
+        if (state.tokens >= 1) {
+          state.tokens -= 1;
+          return forward(isLegit);
+        }
+        return drop(isLegit);
+      }
       case 'ceiling':
       default:
         return state.forwardedThisWindow >= CEILING_PPS ? drop(isLegit) : forward(isLegit);
@@ -180,6 +211,10 @@ export function createScrubber(env = process.env) {
       return state.dropped > 0
         ? Number(((state.droppedLegit / state.dropped) * 100).toFixed(2))
         : 0;
+    },
+    /** Token-bucket: available tokens (only meaningful for the token-bucket strategy). */
+    get tokens() {
+      return state.tokens;
     },
   };
 
@@ -274,7 +309,17 @@ export function createScrubber(env = process.env) {
     if (metricsServer) metricsServer.close(settle);
   }
 
-  return { start, stop, ingest, tick, metrics, renderMetrics, protectionJson, strategy: STRATEGY };
+  return {
+    start,
+    stop,
+    ingest,
+    tick,
+    refillTokens,
+    metrics,
+    renderMetrics,
+    protectionJson,
+    strategy: STRATEGY,
+  };
 }
 
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;

@@ -93,3 +93,26 @@ test('adaptive strategy decays the ceiling back down when there is no collateral
   assert.ok(s.metrics.effectiveCeiling < raised, 'ceiling decayed without collateral');
   assert.ok(s.metrics.effectiveCeiling >= 10, 'never below the floor');
 });
+
+test('token-bucket strategy caps the sustained rate but allows a bounded burst', () => {
+  const s = createScrubber({
+    ...base,
+    STRATEGY: 'token-bucket',
+    THRESHOLD_PPS: '100',
+    CEILING_PPS: '10',
+    BUCKET_BURST: '20',
+    DETECTION_DELAY_SEC: '0',
+  });
+  assert.equal(s.strategy, 'token-bucket');
+  engage(s, { attack: 200 }); // breach → mitigating (tokens untouched pre-mitigation)
+  const fwdBefore = s.metrics.forwarded;
+  // A rapid burst of 50 packets: ~the bucket (20) forwarded, the rest dropped.
+  for (let i = 0; i < 50; i++) s.ingest(ATTACK);
+  const burst = s.metrics.forwarded - fwdBefore;
+  assert.ok(burst >= 18 && burst <= 22, `burst should be ~20 (the bucket), got ${burst}`);
+  // Simulate a full second of refill → ~CEILING_PPS more tokens → ~10 more pass.
+  s.refillTokens(Date.now() + 1000);
+  const fwdMid = s.metrics.forwarded;
+  for (let i = 0; i < 50; i++) s.ingest(ATTACK);
+  assert.ok(s.metrics.forwarded - fwdMid >= 8, 'a second of refill lets ~CEILING more through');
+});
