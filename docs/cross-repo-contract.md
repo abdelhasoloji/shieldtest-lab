@@ -45,10 +45,28 @@ Les formes JSON sont verrouillées ici par
 JSON matches… », « scrubber /protection JSON matches… »). Détail des endpoints :
 [`servers/scrubber.md`](servers/scrubber.md), [`servers/target.md`](servers/target.md).
 
+## Verdict spoofé L3/L4 (`kind: 'l3-spoof'`, classe C)
+
+Le sous-système spoofing expérimental (`l3/`, voir
+[`spoofing-architecture.md`](spoofing-architecture.md)) produit un verdict
+**classe C** supplémentaire, `kind: 'l3-spoof'` (schéma inchangé
+`shieldtest.lab.verdict/v1`, `l3/verdict.mjs`). Comme tout verdict classe C, il
+est **read-only** : le plan de contrôle **rejette la classe C** et n'ouvre jamais
+de socket raw/spoofing — l'émetteur reste exclusivement dans ce dépôt.
+
+Champs propres au spoofing : `profile {requested, applied, digest}`, le
+**certificat de confinement** (`confinement`, GO/NO_GO), `window {startedAt,
+finishedAt, stopReason}`, `packets {requested, emitted, emittedBytes, peakPps}`,
+`sources {pool, distinct}`, `destination {targetId, observed}`, `egressGuard
+{dropped, dropReasons}`, `killSwitch {tripped, reason}`, `captureSha256`,
+`outcome` (∈ `L3_OUTCOMES`), et `simulated` (V1 : `false` en dry-run, `true` en
+namespace-sim — **jamais d'émission réelle**). Le fonctionnement réel dépend de
+l'autorisation WEDOS au vSwitch/hyperviseur, jamais contournée.
+
 ## Propriétés de sûreté du contrat
 
 - **Ce banc ne touche jamais la production** ; le plan de contrôle n'ouvre jamais
-  de socket d'amplification.
+  de socket d'amplification (ni de socket spoofé).
 - **Lecture seule** : verdict posté (classe C) + métriques lues en pull.
 - **Fail-closed** des deux côtés (runner et dispatch).
 
