@@ -1,5 +1,8 @@
 import { assertLabAddress } from '../lib/net-guard.mjs';
-import { SOURCE_POOLS } from '../lib/source-pool.mjs';
+
+// Profiles now live in their own authoritative module; re-exported here so the
+// existing `getProfile`/`L3_PROFILES` imports keep resolving from the registry.
+export { L3_PROFILES, getProfile, listProfiles, L3_ABSOLUTE_CEILING } from './profiles.mjs';
 
 // Pre-registered objects a spoofed L3 scenario may reference by ID. A scenario
 // never carries a raw IP, hostname, interface name, CIDR or command — it names a
@@ -41,27 +44,8 @@ export const L3_INTERFACES = Object.freeze(
   Object.fromEntries(INTERFACE_DEFS.map((i) => [i.id, Object.freeze({ ...i })])),
 );
 
-// --- Profiles (V1) ---------------------------------------------------------
-// The full profile shape (ramp strategy, expected metrics, risk level) lands in a
-// later phase; here each profile carries its ID, protocol, allowed ports, and the
-// ABSOLUTE, hard-coded caps that NO environment variable can raise — so the
-// scenario model can validate a requested load against them now. Deliberately low
-// for a VM sim; a spoofed run can never exceed these.
-const PROFILE_DEFS = [
-  { id: 'udp-spoofed-constant', protocol: 'udp', ports: [9002], rampStrategy: 'constant', riskLevel: 'medium', absMaxPps: 200, absMaxDurationSec: 30, absMaxPacketSize: 512, absMaxSources: 256 },
-  { id: 'udp-spoofed-ramp', protocol: 'udp', ports: [9002], rampStrategy: 'ramp', riskLevel: 'medium', absMaxPps: 200, absMaxDurationSec: 30, absMaxPacketSize: 512, absMaxSources: 256 },
-  { id: 'udp-spoofed-burst', protocol: 'udp', ports: [9002], rampStrategy: 'burst', riskLevel: 'high', absMaxPps: 200, absMaxDurationSec: 20, absMaxPacketSize: 512, absMaxSources: 256 },
-  { id: 'tcp-syn-spoofed-model', protocol: 'tcp', ports: [9002], rampStrategy: 'constant', riskLevel: 'high', absMaxPps: 200, absMaxDurationSec: 20, absMaxPacketSize: 64, absMaxSources: 256 },
-];
-
-export const L3_PROFILES = Object.freeze(
-  Object.fromEntries(
-    PROFILE_DEFS.map((p) => {
-      if (!SOURCE_POOLS) throw new Error('source pools unavailable'); // import sanity
-      return [p.id, Object.freeze({ ...p, ports: Object.freeze([...p.ports]) })];
-    }),
-  ),
-);
+// Profiles (V1) are defined in ./profiles.mjs and re-exported at the top of this
+// module. `getProfile` / `L3_PROFILES` therefore still resolve from the registry.
 
 /** Look up a registered target by id (fail-closed). */
 export function getTarget(id) {
@@ -75,11 +59,4 @@ export function getInterface(id) {
   const i = L3_INTERFACES[id];
   if (!i) throw new Error(`unknown interface: ${JSON.stringify(id)}`);
   return i;
-}
-
-/** Look up a registered profile by id (fail-closed). */
-export function getProfile(id) {
-  const p = L3_PROFILES[id];
-  if (!p) throw new Error(`unknown profile: ${JSON.stringify(id)}`);
-  return p;
 }
