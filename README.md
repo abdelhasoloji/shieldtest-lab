@@ -127,6 +127,31 @@ label from the governed queue — never an arbitrary host, rate or duration. It
 fails closed without `BENCH_API_URL` and `BENCH_RUNNER_TOKEN`. See ShieldTest's
 `docs/drs-validation-policy.md` §8.
 
+## Experimental: spoofed L3/L4 mode (`l3/`, no real emission in V1)
+
+A heavily-gated subsystem models **L3/L4 attacks with falsified source IPs**
+inside the closed lab **only** — never toward the Internet, an arbitrary
+destination, or from the management network. It is off by default and, in **V1,
+emits no real packet**: the runnable backends are `dry-run` (nothing) and
+`namespace-sim` (an in-process functional model). A real raw-packet backend is
+registered but **disabled** and cannot run without a dedicated hardened
+container, a real confinement proof, and **WEDOS vSwitch/hypervisor
+authorization** (which the software never bypasses).
+
+It is guarded by a **triple lock** (configuration, a confinement preflight →
+GO/NO_GO certificate, and an independent default-DROP egress guard), a **local
+signed campaign token** (HMAC + expiry + exact-parameter match + anti-replay
+nonce) on top of the control-plane approval, an **independent kill switch** with
+an absolute timeout, frozen registries (sources / targets / interfaces /
+profiles with absolute caps), a **single** active spoofed campaign, and a
+**finite** duration with mandatory auto-stop. Its verdict is a read-only,
+class-C `l3-spoof` artifact.
+
+Design & safety: [`docs/spoofing-architecture.md`](docs/spoofing-architecture.md),
+[`docs/spoofing-threat-model.md`](docs/spoofing-threat-model.md),
+[`docs/confinement-preflight.md`](docs/confinement-preflight.md),
+[`docs/emergency-stop.md`](docs/emergency-stop.md).
+
 ## Relationship to ShieldTest
 
 The two connect **only through a read-only, governed contract** — never a live
