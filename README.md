@@ -97,6 +97,17 @@ amplification breakdown), and the scrubber's **mitigation strategies**:
 - `adaptive` — start at the floor and raise the ceiling toward the threshold when
   mitigation harms legitimate traffic, decay it back down when it does not.
 
+The scenarios whose ids match the control plane's `BENCH_SCENARIOS`
+(`udp_dns_reflection`, `udp_ntp_reflection`, `udp_ssdp_reflection`,
+`udp_cldap_reflection`, `udp_memcached_reflection`, `quic_init_pressure`,
+`udp_maxpackets`, `udp_multivector`, `pulsewave_l34`, `tcp_synflood`,
+`tcp_maxpackets`, `tcp_conn_drain`) are the **class-C companion** the control
+plane pairs with an L7 playbook (its `network-drs345` ladder). A CISO records a
+governed bench-run request there; the runner below claims it, runs the matching
+scenario here, and posts a read-only class-C verdict back. Each is only a bounded,
+synthetic **shape** over the same reflector/tcp-target infrastructure — no real
+reflector protocol, no source-IP spoofing.
+
 ## Verdict artifact (read-only, class C)
 
 `verdict.mjs` maps a run to a small JSON artifact — amplification factor, packet

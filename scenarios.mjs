@@ -131,6 +131,52 @@ export const SCENARIOS = {
     target: { CAPACITY: 300 },
     generator: { RATE_CPS: 250, DURATION_SEC: 6, HOLD_MS: 4000 },
   },
+
+  // --- Cross-layer class-C ladder (control-plane `network-drs345`) ------------
+  // Synthetic realisations of the additional reflection/flood SHAPES the control
+  // plane pairs with an L7 playbook. Each reuses the same bounded reflector /
+  // generator / tcp-target infrastructure — no new attack code, no real
+  // reflector protocol, no source-IP spoofing. Ids match the control plane's
+  // BENCH_SCENARIOS so the runner can execute a claimed request directly.
+  udp_ntp_reflection: {
+    summary: 'DRS3 — UDP NTP reflection (synthetic monlist-style burst shape).',
+    useScrubber: false,
+    generator: { PROFILE: 'ntp', SHAPE: 'constant', FACTOR: 100, PACKET_FACTOR: 6, PPS: 100, DURATION_SEC: 6 },
+  },
+  udp_ssdp_reflection: {
+    summary: 'DRS3 — UDP SSDP/UPnP reflection (synthetic discovery-reply shape).',
+    useScrubber: false,
+    generator: { PROFILE: 'ssdp', SHAPE: 'constant', FACTOR: 30, PACKET_FACTOR: 1, PPS: 140, DURATION_SEC: 6 },
+  },
+  udp_cldap_reflection: {
+    summary: 'DRS4 — UDP CLDAP reflection (synthetic directory-reply shape).',
+    useScrubber: false,
+    generator: { PROFILE: 'cldap', SHAPE: 'constant', FACTOR: 56, PACKET_FACTOR: 1, PPS: 120, DURATION_SEC: 6 },
+  },
+  udp_memcached_reflection: {
+    summary: 'DRS4 — UDP memcached reflection (very high synthetic factor; clamped by the caps).',
+    useScrubber: false,
+    generator: { PROFILE: 'memcached', SHAPE: 'constant', FACTOR: 100, PACKET_FACTOR: 10, PPS: 80, DURATION_SEC: 6 },
+  },
+  quic_init_pressure: {
+    summary: 'DRS4 — QUIC/UDP initial-handshake flood shape (many small packets; NOT amplification).',
+    useScrubber: false,
+    generator: { PROFILE: 'generic', SHAPE: 'constant', FACTOR: 1, PACKET_FACTOR: 1, PPS: 200, DURATION_SEC: 6 },
+  },
+  pulsewave_l34: {
+    summary: 'DRS5 — PulseWave: synchronized on/off bursts across synthetic profiles.',
+    useScrubber: false,
+    generators: [
+      { PROFILE: 'dns', SHAPE: 'burst', FACTOR: 40, PACKET_FACTOR: 2, PPS: 90, DURATION_SEC: 8 },
+      { PROFILE: 'ntp', SHAPE: 'burst', FACTOR: 80, PACKET_FACTOR: 4, PPS: 70, DURATION_SEC: 8 },
+    ],
+  },
+  tcp_conn_drain: {
+    kind: 'tcp',
+    summary: 'DRS4 — TCP slow connection drain: hold real connections to pressure the state table (no spoof).',
+    target: { CAPACITY: 200 },
+    generator: { RATE_CPS: 60, DURATION_SEC: 8, HOLD_MS: 15000 },
+  },
 };
 
 export function scenarioNames() {

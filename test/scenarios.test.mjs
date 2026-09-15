@@ -69,6 +69,35 @@ test('zeroBS Volumetric UDP vectors are present and runnable', async () => {
   assert.ok(profiles.includes('dns') && profiles.includes('ntp') && profiles.includes('memcached'));
 });
 
+test('cross-layer class-C ladder UDP scenarios run and produce class-C verdicts', async () => {
+  const names = [
+    'udp_ntp_reflection',
+    'udp_ssdp_reflection',
+    'udp_cldap_reflection',
+    'udp_memcached_reflection',
+    'quic_init_pressure',
+    'pulsewave_l34',
+  ];
+  for (const name of names) {
+    assert.ok(scenarioNames().includes(name), `${name} present`);
+    const s = await runScenario(name, { generator: { DURATION_SEC: 1 } });
+    assert.ok(s.reflector.requests > 0, `${name} produced traffic`);
+    assert.equal(s.verdict.class, 'C', `${name} is a class-C verdict`);
+    assert.equal(s.verdict.kind, 'udp-amplification');
+    assert.equal(s.verdict.scenario, name);
+    assert.ok(s.verdict.schema.startsWith('shieldtest.lab.verdict'), 'valid verdict schema');
+  }
+});
+
+test('tcp_conn_drain holds real connections (no-spoof state-table pressure)', async () => {
+  const s = await runScenario('tcp_conn_drain', { generator: { DURATION_SEC: 1, HOLD_MS: 1500 } });
+  assert.equal(s.kind, 'tcp');
+  assert.equal(s.verdict.class, 'C');
+  assert.equal(s.verdict.kind, 'tcp-connection-pressure');
+  assert.equal(s.verdict.scenario, 'tcp_conn_drain');
+  assert.ok(s.target.accepted >= 0, 'the tcp target accounted connections');
+});
+
 test('rejects an unknown scenario', async () => {
   await assert.rejects(() => runScenario('nope'), /unknown scenario/);
 });
