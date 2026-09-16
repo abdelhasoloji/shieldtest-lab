@@ -178,6 +178,12 @@ export const PAGE = `<!doctype html>
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => (n == null ? '—' : (typeof n === 'number' ? Math.round(n).toLocaleString() : n));
 let running = false, series = [], scenarios = {};
+let es = null, watchdog = null, backstop = null;
+// A run must never be able to lie: if the backend dies mid-stream, EventSource
+// silently retries (readyState CONNECTING) instead of closing, which would leave
+// the panel stuck on "running…" forever. These bounds force the truth instead.
+const STALL_MS = 8000;     // no stream activity for this long => declare a failure
+const MAX_RUN_MS = 45000;  // absolute backstop (named scenarios are bounded to ~10s)
 
 const themes = ['system', 'light', 'dark']; let ti = 0;
 $('theme').addEventListener('click', () => {
@@ -188,6 +194,27 @@ $('theme').addEventListener('click', () => {
 });
 
 function setStatus(text, cls) { const s = $('status'); s.textContent = text; s.className = 'badge ' + cls; }
+
+function clearTimers() {
+  if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+  if (backstop) { clearTimeout(backstop); backstop = null; }
+}
+function armWatchdog() {
+  if (watchdog) clearTimeout(watchdog);
+  watchdog = setTimeout(() => finishRun('error', 'bad',
+    'No data from the lab backend — the run stream stalled or the backend is unreachable.'), STALL_MS);
+}
+// Idempotent end-of-run: closes the stream, stops the timers, re-enables Run, and
+// ignores any late/duplicate events. Every terminal path goes through here.
+function finishRun(statusText, cls, msg) {
+  if (!running) return;
+  running = false;
+  clearTimers();
+  if (es) { try { es.close(); } catch (_) {} es = null; }
+  setStatus(statusText, cls);
+  if (msg != null) $('summary').textContent = msg;
+  $('run').disabled = false;
+}
 
 function renderMeta(s) {
   if (!s) { $('meta').innerHTML = ''; return; }
@@ -276,33 +303,50 @@ function run() {
   $('verdictCard').hidden = true; $('profileCard').hidden = true;
   tiles({}); drawSpark();
   const name = $('scenario').value;
-  const es = new EventSource('./api/run-stream?scenario=' + encodeURIComponent(name));
+  es = new EventSource('./api/run-stream?scenario=' + encodeURIComponent(name));
+  armWatchdog();
+  backstop = setTimeout(() => finishRun('error', 'bad',
+    'The run exceeded its maximum expected time — treating the backend as unresponsive.'), MAX_RUN_MS);
+  es.addEventListener('open', armWatchdog);
   es.addEventListener('sample', (e) => {
-    const snap = JSON.parse(e.data);
+    if (!running) return;
+    armWatchdog();
+    let snap; try { snap = JSON.parse(e.data); } catch (_) { return; }
     tiles(snap);
     series.push(snap.target ? (snap.target.avgPps || 0) : 0);
     if (series.length > 240) series.shift();
     drawSpark();
   });
   es.addEventListener('done', (e) => {
-    const summary = JSON.parse(e.data);
+    if (!running) return;
+    let summary; try { summary = JSON.parse(e.data); } catch (_) { return finishRun('error', 'bad', 'Malformed run result from the backend.'); }
     tiles(summary); renderProfiles(summary.perProfile); renderVerdict(summary.verdict); addHistory(summary.verdict);
-    setStatus('done', 'ok'); es.close(); running = false; $('run').disabled = false;
+    finishRun('done', 'ok');
   });
   es.addEventListener('error', (e) => {
-    setStatus('error', 'bad');
-    if (e.data) { try { $('summary').textContent = JSON.parse(e.data).error; } catch (_) {} }
-    es.close(); running = false; $('run').disabled = false;
+    let msg = 'Lost connection to the lab backend — the run did not complete.';
+    if (e && e.data) { try { msg = JSON.parse(e.data).error; } catch (_) {} }
+    finishRun('error', 'bad', msg);
   });
 }
 
 async function init() {
-  const list = await (await fetch('./api/scenarios')).json();
-  scenarios = Object.fromEntries(list.map((s) => [s.name, s]));
-  $('scenario').innerHTML = list.map((s) => '<option value="' + s.name + '">' + s.name + '</option>').join('');
-  const show = () => { const s = scenarios[$('scenario').value]; $('summary').textContent = s ? s.summary : ''; renderMeta(s); };
-  $('scenario').addEventListener('change', show); show();
-  tiles({});
+  try {
+    const res = await fetch('./api/scenarios');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const list = await res.json();
+    if (!Array.isArray(list) || list.length === 0) throw new Error('no scenarios returned');
+    scenarios = Object.fromEntries(list.map((s) => [s.name, s]));
+    $('scenario').innerHTML = list.map((s) => '<option value="' + s.name + '">' + s.name + '</option>').join('');
+    const show = () => { const s = scenarios[$('scenario').value]; $('summary').textContent = s ? s.summary : ''; renderMeta(s); };
+    $('scenario').addEventListener('change', show); show();
+    tiles({});
+  } catch (err) {
+    // Tell the truth instead of showing an empty, clickable-looking console.
+    setStatus('backend unreachable', 'bad');
+    $('run').disabled = true;
+    $('summary').textContent = 'Cannot reach the lab console backend (' + err.message + '). Start it with npm run console and reload.';
+  }
 }
 $('run').addEventListener('click', run);
 init();
