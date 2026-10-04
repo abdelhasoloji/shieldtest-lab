@@ -27,9 +27,13 @@ export function createReflector(env = process.env) {
   const LISTEN_PORT = Number(env.LISTEN_PORT || 9001);
   const TARGET_HOST = env.TARGET_HOST || '192.168.100.99';
   const TARGET_PORT = Number(env.TARGET_PORT || 9002);
-  const MAX_FACTOR = Number(env.MAX_FACTOR || 50);
-  const MAX_RESPONSE_BYTES = Number(env.MAX_RESPONSE_BYTES || 8192);
-  const MAX_PACKET_FACTOR = Number(env.MAX_PACKET_FACTOR || 10);
+  // Pentest-mode defaults: raise the caps so a single reflector can produce
+  // meaningful volumetric pressure on a public target (e.g. 46.28.109.92).
+  // All values remain bounded by the hard limits below (factor ≤ 100,
+  // response ≤ 65507 B, packet factor ≤ 100) — only the *defaults* change.
+  const MAX_FACTOR = Number(env.MAX_FACTOR || 100);
+  const MAX_RESPONSE_BYTES = Number(env.MAX_RESPONSE_BYTES || 65507);
+  const MAX_PACKET_FACTOR = Number(env.MAX_PACKET_FACTOR || 100);
   const METRICS_PORT = Number(env.METRICS_PORT || 0); // 0 disables the metrics endpoint
 
   // Hard gate: TARGET_HOST must be private/loopback (never a public IP), with an
