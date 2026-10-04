@@ -12,7 +12,7 @@ import { DEFAULT_PROFILE, PROFILE_NAMES, isKnownProfile, resolveProfile } from '
 //   - SHAPE modulates the send *rate over time* (constant/ramp/wave/burst) within
 //     the base PPS cap.
 // `runGenerator()` resolves with the run stats so integration tests can await a
-// complete run; the module self-starts when run directly.
+// complete run; the module also self-starts when run directly.
 
 const SHAPES = new Set(['constant', 'ramp', 'wave', 'burst']);
 
@@ -42,9 +42,12 @@ export function runGenerator(env = process.env) {
   const PROFILE = env.PROFILE || DEFAULT_PROFILE;
   const PPS = Number(env.PPS || 20);
   const DURATION_SEC = Number(env.DURATION_SEC || 10);
-  const MAX_PPS = Number(env.MAX_PPS || 500);
-  const MAX_DURATION_SEC = Number(env.MAX_DURATION_SEC || 60);
-  const MAX_PACKET_FACTOR = Number(env.MAX_PACKET_FACTOR || 10);
+  // Pentest-mode defaults: raise the caps so a single generator can sustain
+  // meaningful packet rates against a public target. Hard limits below are
+  // unchanged (PPS ≤ 5000, duration ≤ 300 s, packet factor ≤ 100).
+  const MAX_PPS = Number(env.MAX_PPS || 5000);
+  const MAX_DURATION_SEC = Number(env.MAX_DURATION_SEC || 300);
+  const MAX_PACKET_FACTOR = Number(env.MAX_PACKET_FACTOR || 100);
   const SHAPE = (env.SHAPE || 'constant').toLowerCase();
   // 'legit' models benign background traffic (never amplified) to measure the
   // scrubber's collateral; point REFLECTOR_HOST at the scrubber in that mode.
