@@ -1,78 +1,21 @@
-# Contrat inter-dépôts : banc `shieldtest-lab` ↔ plan de contrôle
+# Synthetic bench ↔ ShieldTester
 
-Les deux dépôts ne se rejoignent **que** par un contrat gouverné, en lecture
-seule — **jamais** par un chemin d'attaque en direct. Ce banc est le seul
-composant qui émet du trafic synthétique de classe C ; le plan de contrôle ne
-touche jamais le réseau de production et n'ouvre aucun socket d'amplification.
-Cette fiche décrit le contrat **côté banc** ; la fiche miroir côté plan de
-contrôle est dans `Ddostester/docs/cross-repo-contract.md`.
+The control plane owns authorization, campaign/assessment history and versioned DRS reports. This bench owns registered synthetic scenarios, their local execution and artifacts. It does not receive arbitrary host/rate/port commands.
 
-## Les deux dépôts
+## Dispatch and artifacts
 
-| Dépôt | Rôle | Remote |
-| --- | --- | --- |
-| shieldtest-lab (ce dépôt) | Banc synthétique isolé, seul émetteur classe C | `github.com/abdelhasoloji/shieldtest-lab` |
-| Ddostester | Plan de contrôle : gouvernance, mesure, scoring | `github.com/abdelhasoloji/Ddostester` |
+`runner.mjs` calls `POST /api/bench/runs/next/claim`, executes the returned named scenario and posts `POST /api/bench/runs/:id/result`. `BENCH_API_URL`, dedicated `BENCH_RUNNER_TOKEN` and runner identity are protected operator configuration. Missing configuration fails closed. Errors are preserved as errors, not a successful verdict.
 
-## Canal 1 — Dispatch gouverné
+The scrubber's `GET /protection` provides source and detection/mitigation times. The target's `GET /telemetry` provides `nicRxMbps`. Optional control-plane providers consume these summaries; a configured endpoint does not establish four independent DRS instrument roles or full functional evidence.
 
-Le CISO enregistre une demande dans le plan de contrôle ; **ce banc** la réclame,
-l'exécute, et reposte un verdict de classe C en lecture seule.
+The mirror contract is [Ddostester/docs/cross-repo-contract.md](https://github.com/abdelhasoloji/Ddostester/blob/main/docs/cross-repo-contract.md). Its DRS attachment route archives completed bench results as diagnostics. A bench artifact cannot automatically PASS a standard vector. Imported independent proof remains labelled collector-import; hash integrity is not physical attestation.
 
-| Étape | Côté banc (ce dépôt) | Côté plan de contrôle |
-| --- | --- | --- |
-| Réclamation | `runner.mjs:22-27` → `POST {BENCH_API_URL}/api/bench/runs/next/claim` | `app.ts:1047-1054` |
-| Exécution | `run-scenario.mjs` (scénario allowlisté, borné) | — |
-| Verdict | `runner.mjs:34-38` → `POST .../api/bench/runs/:id/result` | `app.ts:1056-1118` |
+## Measurement meaning
 
-- Le runner ne reçoit qu'un **nom de scénario allowlisté** et un label de cible,
-  jamais un host/débit/durée (`runner.mjs:9-11`).
-- **Fail-closed** sans `BENCH_API_URL` + `BENCH_RUNNER_TOKEN` (`runner.mjs:75-78`).
-- Détail : [`servers/runner.md`](servers/runner.md).
+The official DRS 3.00.00 reference, scoring engine and interpretation profile live in the control repository. Reports distinguish software simulation, synthetic laboratory and measured evaluation. Actual received load, physical/virtual clients, observed addresses, injection point, represented/missing dimensions and calibration must remain explicit. No synthetic accounting multiplier is applied.
 
-## Canal 2 — Métriques exposées (le plan de contrôle lit)
+L3 artifacts from dry-run/namespace-sim remain simulation diagnostics; the real backend is disabled. These modules do not enable a control-plane spoofing emitter. The three IoT HTTP workers are a separate control-repository path and share one observed public egress source.
 
-Ce banc expose deux endpoints JSON que le plan de contrôle consomme en pull,
-lecture seule.
+## Scope and credentials
 
-| Endpoint (ce dépôt) | Renvoie | Consommé par |
-| --- | --- | --- |
-| scrubber `GET /protection` (`scrubber/server.mjs:249-253`) | `detectionTimeSec, mitigationTimeSec, strategy, source` | `PROTECTION_METRICS_URL` → `PollProtectionProvider` (plan de contrôle) |
-| target `GET /telemetry` (`target/receiver.mjs:82-86`) | `nicRxMbps` | `TARGET_TELEMETRY_METRICS_URL` → `PollTargetTelemetryProvider` |
-
-Les formes JSON sont verrouillées ici par
-[`test/closed-loop.test.mjs`](../test/closed-loop.test.mjs) (« target /telemetry
-JSON matches… », « scrubber /protection JSON matches… »). Détail des endpoints :
-[`servers/scrubber.md`](servers/scrubber.md), [`servers/target.md`](servers/target.md).
-
-## Verdict spoofé L3/L4 (`kind: 'l3-spoof'`, classe C)
-
-Le sous-système spoofing expérimental (`l3/`, voir
-[`spoofing-architecture.md`](spoofing-architecture.md)) produit un verdict
-**classe C** supplémentaire, `kind: 'l3-spoof'` (schéma inchangé
-`shieldtest.lab.verdict/v1`, `l3/verdict.mjs`). Comme tout verdict classe C, il
-est **read-only** : le plan de contrôle **rejette la classe C** et n'ouvre jamais
-de socket raw/spoofing — l'émetteur reste exclusivement dans ce dépôt.
-
-Champs propres au spoofing : `profile {requested, applied, digest}`, le
-**certificat de confinement** (`confinement`, GO/NO_GO), `window {startedAt,
-finishedAt, stopReason}`, `packets {requested, emitted, emittedBytes, peakPps}`,
-`sources {pool, distinct}`, `destination {targetId, observed}`, `egressGuard
-{dropped, dropReasons}`, `killSwitch {tripped, reason}`, `captureSha256`,
-`outcome` (∈ `L3_OUTCOMES`), et `simulated` (V1 : `false` en dry-run, `true` en
-namespace-sim — **jamais d'émission réelle**). Le fonctionnement réel dépend de
-l'autorisation WEDOS au vSwitch/hyperviseur, jamais contournée.
-
-## Propriétés de sûreté du contrat
-
-- **Ce banc ne touche jamais la production** ; le plan de contrôle n'ouvre jamais
-  de socket d'amplification (ni de socket spoofé).
-- **Lecture seule** : verdict posté (classe C) + métriques lues en pull.
-- **Fail-closed** des deux côtés (runner et dispatch).
-
-## Voir aussi
-
-- Fiches serveur du banc : [`servers/`](servers/README.md).
-- Politique de classe C : `Ddostester/docs/drs-validation-policy.md`.
-- Côté plan de contrôle : `Ddostester/docs/cross-repo-contract.md` et
-  `Ddostester/docs/servers/`.
+The synthetic bench retains its private/loopback guard and internal Compose network. ShieldTester separately supports bounded HTTP tests to explicitly authorized public or private origins. Credentials/private keys remain outside both repositories; a Git update does not renew them or deploy a service. See [current setup](current-setup.md).

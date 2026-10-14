@@ -1,5 +1,7 @@
 # Emergency stop (kill switch)
 
+Scope: experimental L3 dry-run/namespace simulation only; no real packet backend is enabled. These subsystem controls do not restrict the separate authorized HTTP Fleet. See [current setup](current-setup.md).
+
 `l3/kill-switch.mjs` is an **independent supervisor**, outside the generator's
 own control flow. On the **first** trip it latches a reason and calls
 `onTrip(reason)`, which the orchestrator wires to **both**:

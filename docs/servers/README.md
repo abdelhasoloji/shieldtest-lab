@@ -36,8 +36,8 @@ trafic, et détaillés côté variables d'env dans
 
 Trois serveurs/clients qui émettent de l'UDP (reflector, scrubber, generator)
 passent leur adresse de destination par `assertLabAddressInPrefix`
-(`lib/net-guard.mjs:41`). Ce garde n'accepte qu'une IPv4 privée/loopback
-(RFC1918 ou `127/8`, `lib/net-guard.mjs:11-24`) et ne peut **pas** être élargi
+(`lib/net-guard.mjs`). Ce garde n'accepte qu'une IPv4 privée/loopback
+(RFC1918 ou `127/8`, `lib/net-guard.mjs`) et ne peut **pas** être élargi
 par configuration : un préfixe `LAB_CIDR_PREFIX` vide ou absent laisse le garde
-dur en place (`lib/net-guard.mjs:44`). Détail dans chaque fiche, section
+dur en place (`lib/net-guard.mjs`). Détail dans chaque fiche, section
 « Sécurité ».

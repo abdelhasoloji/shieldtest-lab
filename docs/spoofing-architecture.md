@@ -1,5 +1,7 @@
 # Spoofed L3/L4 mode — architecture
 
+Scope: experimental L3 dry-run/namespace simulation only; no real packet backend is enabled. These subsystem controls do not restrict the separate authorized HTTP Fleet. See [current setup](current-setup.md).
+
 Experimental, heavily-gated subsystem that models **L3/L4 attacks with falsified
 source IPs** inside the closed lab **only**. It never emits spoofed traffic to
 the Internet, an arbitrary destination, or from the management network.
@@ -13,7 +15,7 @@ the Internet, an arbitrary destination, or from the management network.
 ## Separation of duties (unchanged)
 
 - **VPS1 / Ddostester** — control, RBAC, approval, scheduling, limits, results.
-  Never generates traffic; never opens a raw/spoofing socket.
+  Generates bounded authorized HTTP; never opens a raw/spoofing socket.
 - **VPS2 / shieldtest-lab** — generation & measurement. The spoofing emitter
   lives here and nowhere else.
 - **Synthetic target** — a fixed private address (`synthetic-target-a`).

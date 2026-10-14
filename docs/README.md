@@ -1,33 +1,13 @@
-# Documentation — ShieldTest Lab
+# Synthetic laboratory documentation
 
-Point d'entrée de la doc du banc. Toute la doc serveurs est **ancrée au code**
-(chaque valeur citée en `fichier:ligne`) ; la méthode est décrite dans
-[`COVERAGE.md`](COVERAGE.md).
+Reconciled on 14 October 2026. Start with [current setup and operational scope](current-setup.md) and [cross-repository contract](cross-repo-contract.md). The HTTP Kubernetes fleet and official DRS engine live in the control repository, not here.
 
-## Serveurs (détail par processus)
+| Topic | Reference |
+| --- | --- |
+| Network model | [Network lab](network-lab.md), [ports/network](reference/ports-and-network.md) |
+| Components | [Server index](servers/README.md), target, reflector, scrubber, console and runner entries |
+| Configuration and measurements | [Environment](reference/environment.md), [HTTP endpoints](reference/http-endpoints.md), [metrics](reference/metrics.md) |
+| Experimental simulation subsystem | [L3 architecture](spoofing-architecture.md), [threat model](spoofing-threat-model.md), [preflight](confinement-preflight.md), [stop](emergency-stop.md) |
+| Verification and doc provenance | [Coverage methodology](COVERAGE.md), [contributor instructions](../AGENTS.md) |
 
-- [Index des serveurs](servers/README.md)
-- [Target (victime UDP)](servers/target.md)
-- [Synthetic reflector](servers/synthetic-reflector.md)
-- [Scrubber (mitigation)](servers/scrubber.md)
-- [TCP target (victime TCP)](servers/tcp-target.md)
-- [Console (UI loopback)](servers/console.md)
-- [Runner (dispatch gouverné)](servers/runner.md)
-
-## Références transverses
-
-- [Ports & réseau](reference/ports-and-network.md)
-- [Variables d'environnement](reference/environment.md)
-- [Endpoints HTTP](reference/http-endpoints.md)
-- [Métriques Prometheus](reference/metrics.md)
-
-## Conception & sûreté
-
-- [Network lab — design & rationale de sûreté](network-lab.md)
-- [Contrat inter-dépôts (banc ↔ plan de contrôle)](cross-repo-contract.md)
-- [Couverture & méthode de la doc](COVERAGE.md)
-
-## Voir aussi
-
-- `../README.md` — vue d'ensemble et démarrage rapide.
-- `../CLAUDE.md` — guide contributeurs/agents et règles de sûreté.
+References describe source contracts, not live deployment qualification. The current setup records the separately observed deployed source. DRS limits, independent evidence requirements and missing Kusa/infrastructure integrations are explicit in the mirror control documentation.

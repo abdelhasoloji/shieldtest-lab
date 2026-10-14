@@ -4,7 +4,7 @@ Tous les noms `shieldtest_*` réellement émis par le code, relevés dans les
 fonctions `renderMetrics()`. Exposition au format texte Prometheus
 `version=0.0.4`, sur `METRICS_PORT` de chaque serveur.
 
-## Target (`target/receiver.mjs:44-60`)
+## Target (`target/receiver.mjs`)
 
 | Métrique | Type | Signification |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ fonctions `renderMetrics()`. Exposition au format texte Prometheus
 | `shieldtest_target_avg_pps` | gauge | Paquets/s moyens depuis le démarrage |
 | `shieldtest_target_avg_bps` | gauge | Bits/s moyens depuis le démarrage |
 
-## Reflector (`synthetic-reflector/server.mjs:123-172`)
+## Reflector (`synthetic-reflector/server.mjs`)
 
 Globales :
 
@@ -35,7 +35,7 @@ Par profil (label `{profile="..."}`, borné à l'allowlist ∪ `other`) :
 | `shieldtest_reflector_profile_output_packets_total` | counter |
 | `shieldtest_reflector_profile_output_bytes_total` | counter |
 
-## Scrubber (`scrubber/server.mjs:186-217`)
+## Scrubber (`scrubber/server.mjs`)
 
 | Métrique | Type | Signification |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ Par profil (label `{profile="..."}`, borné à l'allowlist ∪ `other`) :
 | `shieldtest_scrubber_effective_ceiling_pps` | gauge | Plafond de transfert courant (bougé par `adaptive`) |
 | `shieldtest_scrubber_strategy{strategy="..."}` | gauge | Stratégie active (=1 pour le label actif) |
 
-## TCP target (`tcp-target/receiver.mjs:74-90`)
+## TCP target (`tcp-target/receiver.mjs`)
 
 | Métrique | Type | Signification |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ Par profil (label `{profile="..."}`, borné à l'allowlist ∪ `other`) :
 | `shieldtest_tcp_target_saturation_pct` | gauge | Part des connexions offertes délestées |
 
 > `avgCps` existe dans l'objet `metrics` du TCP target mais n'est **pas** exposé
-> en Prometheus (`tcp-target/receiver.mjs:68-71`).
+> en Prometheus (`tcp-target/receiver.mjs`).
 
 ## Console / Runner
 

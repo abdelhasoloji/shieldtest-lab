@@ -1,5 +1,7 @@
 # Spoofed L3/L4 mode — threat model
 
+Scope: experimental L3 dry-run/namespace simulation only; no real packet backend is enabled. These subsystem controls do not restrict the separate authorized HTTP Fleet. See [current setup](current-setup.md).
+
 Spoofing is a **dangerous capability**, gated by several independent locks (see
 `spoofing-architecture.md`). V1 emits **no real spoofed packet** — the risk
 surface below is analysed anyway, so the design holds when a real backend is one

@@ -1,5 +1,7 @@
 # Confinement preflight & certificate
 
+Scope: experimental L3 dry-run/namespace simulation only; no real packet backend is enabled. These subsystem controls do not restrict the separate authorized HTTP Fleet. See [current setup](current-setup.md).
+
 Before a spoofed run, `l3/confinement.mjs` runs a **local preflight** over an
 injected set of probes and produces a frozen **`ConfinementCertificate`** with a
 final **GO / NO_GO** decision. The certificate travels with the verdict to
