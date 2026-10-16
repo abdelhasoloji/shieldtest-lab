@@ -1,4 +1,4 @@
-FROM node:26.8-alpine
+FROM node:26.11-alpine
 WORKDIR /app
 COPY lib ./lib
 COPY generator/*.mjs ./generator/
