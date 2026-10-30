@@ -1,6 +1,6 @@
 # Pin a specific patch release for reproducible builds; for full immutability
 # replace the tag with a @sha256 digest.
-FROM node:26.8-alpine
+FROM node:26.12-alpine
 WORKDIR /app
 COPY *.mjs ./
 # Normalize perms: COPY inherits the host file mode, which on a restrictive
